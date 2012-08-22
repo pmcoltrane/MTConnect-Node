@@ -7,24 +7,45 @@ exports.load = function(xmldoc){
 	// Probe data has changed. Reset everything.
 	store = {};
 	
-	// Get DataItems
-	var items = xmldoc.getElementsByTagName('DataItem');
+	var devices = xmldoc.getElementsByTagName('Device');
 	
-	for(var i=0; i<items.length; i++){
-		var item = items[i];
+	for(var j=0; j<devices.length; j++){
+		var device = devices[j];
+		var deviceId = device.getAttribute('id');
+		var deviceName = device.getAttribute('name');
+		var deviceUuid = device.getAttribute('uuid');
+	
+		// Get DataItems
+		var items = device.getElementsByTagName('DataItem');
 		
-		var id = item.getAttribute('id');
-		var category = item.getAttribute('category');
-		var name = item.getAttribute('name');
-		var type = item.getAttribute('type');
-		var subType = item.getAttribute('subType');
-		
-		var component = item.parentNode.parentNode;
-		var componentId = component.getAttribute('id');
-		var componentType = component.tagName;
-		var componentName = component.getAttribute('name');
-		
-		store[id] = {id: id, category: category, name: name, type: type, subType: subType, componentId: componentId, componentType: componentType, componentName: componentName, samples: []};
+		for(var i=0; i<items.length; i++){
+			var item = items[i];
+			
+			var id = item.getAttribute('id');
+			var category = item.getAttribute('category');
+			var name = item.getAttribute('name');
+			var type = item.getAttribute('type');
+			var subType = item.getAttribute('subType');
+			
+			var component = item.parentNode.parentNode;
+			var componentId = component.getAttribute('id');
+			var componentType = component.tagName;
+			var componentName = component.getAttribute('name');
+					
+			store[id] = {
+				id: id, 
+				category: category, 
+				name: name, 
+				type: type, 
+				subType: subType, 
+				componentId: componentId, 
+				componentType: componentType, 
+				componentName: componentName, 
+				deviceId: deviceId,
+				deviceName: deviceName,
+				deviceUuid: deviceUuid,
+				samples: []};
+		}
 	}
 }
 
@@ -98,7 +119,22 @@ function flatten(item, sampleIndex){
 	if(sampleIndex>=item.samples.length) return null;
 	
 	var sample = item.samples[sampleIndex];
-	return {id: item.id, category: item.category, name: item.name, type: item.type, subType: item.subType, componentId: item.componentId, componentType: item.componentType, componentName: item.componentName, sequence: sample.sequence, timestamp: sample.timestamp, value: sample.value, condition: sample.condition};
+	return {
+		id: item.id, 
+		category: item.category, 
+		name: item.name, 
+		type: item.type, 
+		subType: item.subType, 
+		componentId: item.componentId, 
+		componentType: item.componentType, 
+		componentName: item.componentName, 
+		deviceId: item.deviceId,
+		deviceName: item.deviceName,
+		deviceUuid: item.deviceUuid,
+		sequence: sample.sequence, 
+		timestamp: sample.timestamp, 
+		value: sample.value, 
+		condition: sample.condition};
 }
 
 

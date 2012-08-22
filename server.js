@@ -2,6 +2,8 @@ var http = require('http');
 var url = require('url');
 var probe = require('./probe.js');
 var store = require('./store.js');
+var DOMParser = require('xmldom').DOMParser;
+var XMLSerializer = require('xmldom').XMLSerializer;
 
 var sender = 'mtconnect-node';
 var instanceId = 0;
@@ -64,6 +66,7 @@ var ErrorCodes = {
 }
 
 
+
 function onRequest(request, response){
 	var parsedUrl = url.parse(request.url, true);
 	var pathname = parsedUrl.pathname.substring(1);
@@ -105,12 +108,98 @@ function streamsDocument(err, response, data){
 	}
 	
 	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
-	var header = createHeader({firstSequence: data.firstSequence, lastSequence: data.lastSequence, nextSequence: data.lastSequence+1});
-	response.write('<MTConnectStreams>');	//TODO: include xmlns attributes
-	response.write(header);
-	response.write('<debug>' + JSON.stringify(data) + '</debug>');
-	response.write('</MTConnectStreams>');
+	
+	var doc = new DOMParser().parseFromString('<MTConnectStreams/>');
+	var rootNode = doc.firstChild;
+	
+	var headerNode = doc.createElement('Header');
+	createHeaderNode(headerNode, {firstSequence: ((data.firstSequence === null) ? 0 : data.firstSequence) , lastSequence: ((data.lastSequence === null) ? 0 : data.lastSequence), nextSequence: ((data.lastSequence === null) ? 0 : data.lastSequence+1)});
+	rootNode.appendChild(headerNode);
+	
+	var streamsNode = doc.createElement('Streams');
+	rootNode.appendChild(streamsNode);
+	
+	//var debugNode = doc.createElement('Debug');
+	//debugNode.appendChild(doc.createTextNode(JSON.stringify(data)));
+	//streamsNode.appendChild(debugNode);
+	
+	// HACK: overall not very clean. Work on this.
+	var devices = {};
+	var components = {};
+	for(var i in data.samples){
+		var item = data.samples[i];
+		
+		var deviceId = item.deviceId;
+		if(!devices.hasOwnProperty(deviceId)){
+			// Add device node
+			var dev = doc.createElement('DeviceStream');
+			createDeviceNode(dev, item);
+			devices[deviceId] = dev;
+		}
+		
+		var componentId = item.componentId;
+		if(!components.hasOwnProperty(componentId)){
+			// Add component node
+			var com = doc.createElement('ComponentStream');
+			createComponentNode(com, item);
+			devices[deviceId].appendChild(com);
+			components[componentId] = com;
+		}
+	
+		switch(item.category){
+			case 'SAMPLE':
+				if(components[componentId].getElementsByTagName('Samples').length===0){
+					components[componentId].appendChild(doc.createElement('Samples'));
+				}
+				var itemNode = doc.createElement(DataItemTypeToStreamsName(item.type));
+				itemNode.appendChild(doc.createTextNode(JSON.stringify(item)));
+				components[componentId].getElementsByTagName('Samples')[0].appendChild(itemNode);
+				break;
+			case 'EVENT':
+				if(components[componentId].getElementsByTagName('Events').length===0){
+					components[componentId].appendChild(doc.createElement('Events'));
+				}
+				var itemNode = doc.createElement(DataItemTypeToStreamsName(item.type));
+				itemNode.appendChild(doc.createTextNode(JSON.stringify(item)));
+				components[componentId].getElementsByTagName('Events')[0].appendChild(itemNode);
+				break;
+			case 'CONDITION':
+				if(components[componentId].getElementsByTagName('Condition').length===0){
+					components[componentId].appendChild(doc.createElement('Condition'));
+				}
+				var itemNode = doc.createElement(DataItemTypeToStreamsName(item.condition));
+				itemNode.appendChild(doc.createTextNode(JSON.stringify(item)));
+				components[componentId].getElementsByTagName('Condition')[0].appendChild(itemNode);
+				break;
+			default:
+				//Do nothing
+		}
+	}
+	
+	// Add all device nodes
+	for(var i in devices){
+		streamsNode.appendChild(devices[i]);
+	}
+	
+	var xml = new XMLSerializer().serializeToString(doc);
+	response.write(xml);
 	response.end();
+}
+
+function DataItemTypeToStreamsName(type){
+	var tokens = type.split("_");
+	var ret = [];
+	for(var i in tokens){
+		ret.push(
+			tokens[i].charAt(0).toUpperCase() 
+			+ tokens[i].substring(1).toLowerCase()
+		);
+	}
+	return ret.join('');
+}
+
+function ConditionToStreamsName(condition){
+	return conditions.charAt(0).toUpperCase() + conditions.substring(1).toLowerCase();
 }
 
 function errorsDocument(err, response, data){
@@ -143,11 +232,11 @@ function errorsDocument(err, response, data){
 function createHeader(attributes){
 	if( (attributes===undefined)||(attributes===null) ){
 		attributes = {};
-		attributes.sender = sender;
-		attributes.instanceId = instanceId;
-		attributes.version = version;
-		attributes.bufferSize = bufferSize;
 	}
+	attributes.sender = sender;
+	attributes.instanceId = instanceId;
+	attributes.version = version;
+	attributes.bufferSize = bufferSize;
 
 	var ret = '<Header creationTime="' + new Date().toISOString() + '" ';
 	for(var item in attributes){
@@ -155,6 +244,32 @@ function createHeader(attributes){
 	}
 	ret += '/>';
 	return ret;
+}
+
+function createHeaderNode(node, attributes){
+	if( (attributes===undefined)||(attributes===null) ){
+		attributes = {};
+	}
+	attributes.creationTime = new Date().toISOString();
+	attributes.sender = sender;
+	attributes.instanceId = '' + instanceId;
+	attributes.version = version;
+	attributes.bufferSize = '' + bufferSize;
+	
+	for(var item in attributes){
+		node.setAttribute(item, '' + attributes[item]);
+	}
+}
+
+function createDeviceNode(node, data){
+	node.setAttribute('name', '' + data.deviceName);
+	node.setAttribute('uuid', '' + data.deviceUuid);
+}
+
+function createComponentNode(node, data){
+	node.setAttribute('component', '' + data.componentType);
+	node.setAttribute('name', '' + data.componentName);
+	node.setAttribute('id', '' + data.componentId);
 }
 
 function getRandomInt (min, max) {
