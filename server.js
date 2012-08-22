@@ -9,14 +9,16 @@ var sender = 'mtconnect-node';
 var instanceId = 0;
 var version = '1.2.0.0';
 var bufferSize = 0;
+var port = 8080;
+
+processArgs(process.argv.splice(2));
 
 instanceId = generateInstanceId();
 probe.loadDevices('probe.xml', function(err, data){
 	store.load(data);
-	//TODO: populate store based on data (XmlDocument).
 });
 
-http.createServer(onRequest).listen(8080);
+http.createServer(onRequest).listen(port);
 
 
 var handlers = {
@@ -27,12 +29,12 @@ var handlers = {
 	sample: function(request, response, query){
 		console.log('sample');
 		var dataItems = probe.getDataItems();
-		streamsDocument(null, response, store.getSample(dataItems));
+		streamsDocument(null, response, store.getSample(dataItems, query.from, query.count));
 	},
 	current: function(request, response, query){
 		console.log('current');
 		var dataItems = probe.getDataItems();
-		streamsDocument(null, response, store.getCurrent(dataItems));
+		streamsDocument(null, response, store.getCurrent(dataItems, query.at));
 	},
 	asset: function(request, response, query){
 		console.log('asset');
@@ -66,6 +68,23 @@ var ErrorCodes = {
 }
 
 
+function processArgs(args){
+	console.log('Args: ' + args);
+	
+	for(var i=0; i<args.length; i++){
+		var tokens = args[i].split('=');
+		switch(tokens[0].toUpperCase()){
+			case 'PORT':
+				port = tokens[1];
+				break;
+			case 'SENDER':
+				sender = tokens[1];
+				break;
+			default:
+				break;
+		}
+	}
+}
 
 function onRequest(request, response){
 	var parsedUrl = url.parse(request.url, true);
@@ -119,68 +138,116 @@ function streamsDocument(err, response, data){
 	var streamsNode = doc.createElement('Streams');
 	rootNode.appendChild(streamsNode);
 	
-	//var debugNode = doc.createElement('Debug');
-	//debugNode.appendChild(doc.createTextNode(JSON.stringify(data)));
-	//streamsNode.appendChild(debugNode);
-	
-	// HACK: overall not very clean. Work on this.
+	// Create hierarchy
 	var devices = {};
-	var components = {};
 	for(var i in data.samples){
 		var item = data.samples[i];
 		
-		var deviceId = item.deviceId;
-		if(!devices.hasOwnProperty(deviceId)){
-			// Add device node
-			var dev = doc.createElement('DeviceStream');
-			createDeviceNode(dev, item);
-			devices[deviceId] = dev;
+		// If device does not exist, add it.
+		if( !devices.hasOwnProperty(item.deviceUuid) ){
+			devices[item.deviceUuid] = {
+				uuid: item.deviceUuid,
+				name: item.deviceName,
+				components: {}
+			}
 		}
-		
-		var componentId = item.componentId;
-		if(!components.hasOwnProperty(componentId)){
-			// Add component node
-			var com = doc.createElement('ComponentStream');
-			createComponentNode(com, item);
-			devices[deviceId].appendChild(com);
-			components[componentId] = com;
-		}
+		var device = devices[item.deviceUuid];
 	
+		// If component does not exist, add it.
+		if( !device.components.hasOwnProperty(item.componentId) ){
+			device.components[item.componentId] = {
+				component: item.componentType,
+				name: item.componentName,
+				id: item.componentId,
+				samples: [],
+				events: [],
+				condition: []
+			}
+		}
+		var component = device.components[item.componentId];
+		
 		switch(item.category){
 			case 'SAMPLE':
-				if(components[componentId].getElementsByTagName('Samples').length===0){
-					components[componentId].appendChild(doc.createElement('Samples'));
-				}
-				var itemNode = doc.createElement(DataItemTypeToStreamsName(item.type));
-				itemNode.appendChild(doc.createTextNode(JSON.stringify(item)));
-				components[componentId].getElementsByTagName('Samples')[0].appendChild(itemNode);
+				component.samples.push(item);
 				break;
 			case 'EVENT':
-				if(components[componentId].getElementsByTagName('Events').length===0){
-					components[componentId].appendChild(doc.createElement('Events'));
-				}
-				var itemNode = doc.createElement(DataItemTypeToStreamsName(item.type));
-				itemNode.appendChild(doc.createTextNode(JSON.stringify(item)));
-				components[componentId].getElementsByTagName('Events')[0].appendChild(itemNode);
+				component.events.push(item);
 				break;
 			case 'CONDITION':
-				if(components[componentId].getElementsByTagName('Condition').length===0){
-					components[componentId].appendChild(doc.createElement('Condition'));
-				}
-				var itemNode = doc.createElement(DataItemTypeToStreamsName(item.condition));
-				itemNode.appendChild(doc.createTextNode(JSON.stringify(item)));
-				components[componentId].getElementsByTagName('Condition')[0].appendChild(itemNode);
+				component.condition.push(item);
 				break;
 			default:
-				//Do nothing
+				// Unknown. Do nothing.
+				break;
 		}
 	}
 	
-	// Add all device nodes
+	// Build XML from hierarchy
+	// TODO: refactor
 	for(var i in devices){
-		streamsNode.appendChild(devices[i]);
+		var device = devices[i];
+		var deviceNode = doc.createElement('DeviceStream');
+		createDeviceNode(deviceNode, device);
+		streamsNode.appendChild(deviceNode);
+		
+		// Iterate through each component
+		for(var j in device.components){
+			var component = device.components[j];
+			var componentNode = doc.createElement('ComponentStream');
+			createComponentNode(componentNode, component);
+			deviceNode.appendChild(componentNode);
+			
+			// If we have samples, append them
+			if( (component.samples) && (component.samples.length>0) ){
+				var samplesNode = doc.createElement('Samples');
+				componentNode.appendChild(samplesNode);
+				for(var k in component.samples){
+					var item = component.samples[k];
+					var itemNode = doc.createElement(DataItemTypeToStreamsName(item.type));
+					itemNode.setAttribute('dataItemId', '' + item.id);
+					itemNode.setAttribute('timestamp', '' + item.timestamp);
+					itemNode.setAttribute('sequence', '' + item.sequence);
+					itemNode.setAttribute('subType', '' + item.subType);
+					itemNode.appendChild(doc.createTextNode('' + item.value));
+					samplesNode.appendChild(itemNode);
+				}
+			}
+			
+			// If we have events, append them
+			if( (component.events) && (component.events.length>0) ){
+				var eventsNode = doc.createElement('Events');
+				componentNode.appendChild(eventsNode);
+				for(var k in component.events){
+					var item = component.events[k];
+					var itemNode = doc.createElement(DataItemTypeToStreamsName(item.type));
+					itemNode.setAttribute('dataItemId', '' + item.id);
+					itemNode.setAttribute('timestamp', '' + item.timestamp);
+					itemNode.setAttribute('sequence', '' + item.sequence);
+					itemNode.setAttribute('subType', '' + item.subType);
+					itemNode.appendChild(doc.createTextNode('' + item.value));
+					eventsNode.appendChild(itemNode);
+				}
+			}
+			
+			// If we have conditions, append them
+			if( (component.condition) && (component.condition.length>0) ){
+				var conditionNode = doc.createElement('Condition');
+				componentNode.appendChild(conditionNode);
+				for(var k in component.samples){
+					var item = component.samples[k];
+					var itemNode = doc.createElement(DataItemTypeToStreamsName(item.condition));
+					itemNode.setAttribute('dataItemId', '' + item.id);
+					itemNode.setAttribute('timestamp', '' + item.timestamp);
+					itemNode.setAttribute('sequence', '' + item.sequence);
+					itemNode.setAttribute('type', '' + item.type);
+					itemNode.setAttribute('subType', '' + item.subType);
+					itemNode.appendChild(doc.createTextNode('' + item.value));
+					conditionNode.appendChild(itemNode);
+				}
+			}
+		}
 	}
-	
+		
 	var xml = new XMLSerializer().serializeToString(doc);
 	response.write(xml);
 	response.end();
@@ -262,14 +329,14 @@ function createHeaderNode(node, attributes){
 }
 
 function createDeviceNode(node, data){
-	node.setAttribute('name', '' + data.deviceName);
-	node.setAttribute('uuid', '' + data.deviceUuid);
+	node.setAttribute('name', '' + data.name);
+	node.setAttribute('uuid', '' + data.uuid);
 }
 
 function createComponentNode(node, data){
-	node.setAttribute('component', '' + data.componentType);
-	node.setAttribute('name', '' + data.componentName);
-	node.setAttribute('id', '' + data.componentId);
+	node.setAttribute('component', '' + data.component);
+	node.setAttribute('name', '' + data.name);
+	node.setAttribute('id', '' + data.id);
 }
 
 function getRandomInt (min, max) {

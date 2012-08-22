@@ -7,6 +7,14 @@ This is my first attempt at a Node.js project.
 As such, it is not necessarily good Node.js code. 
 In particular, many synchronous calls need to be made asynchronous.
 
+## What's New
+
+*2012/08/22*
+
+* The `current` and `sample` resources now return something that looks like a valid MTConnectStreams document.
+* The `sample` resource now supports `from` and `count` parameters.
+* The server now supports command-line arguments for `port` and `sender`.
+
 ## What Works, What Doesn't
 
 The server will load device settings from a probe.xml file, and then listen on port 8080.
@@ -20,10 +28,12 @@ Instead, they will return JSON data inside a <Debug> tag.
 
 Parameters are not implemented for any of the requests.
 A /probe request will not recognize a device-specific probe such as `http://hostname:port/devicename/probe`.
-A /current request will not recognize `at` or `interval` parameters.
-A /sample request will not recognize `from`, `count`, or `interval` parameters.
+A /current request will not recognize `path`, `at` or `interval` parameters.
+A /sample request will not recognize `path` or `interval` parameters.
 
 Assets are not implemented at all. 
+
+Test cases are not yet created.
 
 ## Installation
 
@@ -34,13 +44,16 @@ Assets are not implemented at all.
 ## Usage
 
 From a command prompt in the repository working directory:
-> node server.js
+> node server.js [port={port}] [sender={sender}]
 
-The server will listen on port 8080. From there, data items may be stored in the agent with:
+The optional `port` parameter will be interpreted as the port on which the server should listen.
+The optional `sender` parameter will be used as the 'sender' string sent in the document headers. 
+
+The server will listen on port 8080 by default. From there, data items may be stored in the agent with:
 
 `http://localhost:8080/store?id={dataItemId}&timestamp={timestamp}&value={value}&condition={condition}`
 
-Although the parameters are not yet validated, they should be provided as follows:
+Parameters should be provided as follows:
 * `dataItemId` - the id of the data item.
 * `timestamp` - the UTC timestamp in ISO8601 format e.g. 2012-08-19T21:21:00Z.
 * `value` - the value of the data item.

@@ -56,21 +56,37 @@ exports.getSample = function(dataItems, from, count){
 		var id = dataItems[i];
 		var item = store[id];
 		for(var j=0; j<item.samples.length; j++){
-			//TODO: filter by from-parameter if necessary
+			// Filter by from-parameter if necessary
+			if(from!==undefined){
+				console.log('from=' + from);
+				if( item.samples[j].sequence < from ) continue;
+			}
+		
 			var sample = flatten(item, j)
 			if( sample !== null){
 				ret.samples.push(sample);
-				if( (ret.firstSequence===null) || (sample.sequence<ret.firstSequence) ){
-					ret.firstSequence = sample.sequence;
-				}
-				if( (ret.lastSequence===null) || (sample.sequence>ret.lastSequence) ){
-					ret.lastSequence = sample.sequence;
-				}
 			}
 		}
 	}
 	
-	//TODO: once all samples are processed, sort by sequence number and filter by count if necessary
+	// Sort by sequence and filter by count if necessary
+	if( count===undefined ){
+		count=10;
+	}
+	ret.samples.sort(function(a, b){
+		if(a.sequence > b.sequence) return 1;
+		if(a.sequence < b.sequence) return -1;
+		return 0;
+	});
+	ret.samples.length = Math.min(count, ret.samples.length);
+	if(ret.samples.length>0){
+		ret.firstSequence = ret.samples[0].sequence;
+		ret.lastSequence = ret.samples[ret.samples.length-1].sequence;
+	}
+	else{
+		ret.firstSequence = 0;
+		ret.lastSequence = 0;
+	}
 	
 	return ret;
 }
@@ -82,9 +98,12 @@ exports.getCurrent = function(dataItems, at){
 	for(var i=0; i<dataItems.length; i++){
 		var id = dataItems[i];
 		var item = store[id];
-		//TODO: include at-parameter
 		
-		var sample = flatten(item, item.samples.length-1)
+		var index = item.samples.length-1;
+		
+		// TODO: support at-parameter
+
+		var sample = flatten(item, index)
 		if( sample !== null ){
 			ret.samples.push(sample);
 			if( (ret.firstSequence===null) || (sample.sequence<ret.firstSequence) ){
@@ -100,6 +119,21 @@ exports.getCurrent = function(dataItems, at){
 }
 
 exports.storeSample = function(id, value, timestamp, condition){
+	if( !store.hasOwnProperty(id) ) return;
+	
+	// Exit if this value is identical to the previous value.
+	if( store[id].samples.length > 0 ){
+		var current = store[id].samples[store[id].samples.length-1];
+		if( current.value == value ) return;
+	}
+	
+	// If condition is not one of UNAVAILABLE, NORMAL, WARNING, or FAULT, exit.
+	if( store[id].category === 'CONDITION' ){
+		if( (condition != 'UNAVAILABLE') && (condition != 'NORMAL') && (condition != 'WARNING') && (condition != 'FAULT') ) return;
+	}
+	
+	// TODO: validate timestamp
+
 	var sequence = nextSequence++;
 	store[id].samples.push({sequence: sequence, timestamp: timestamp, value: value, condition: condition});
 }
