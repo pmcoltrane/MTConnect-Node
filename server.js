@@ -10,6 +10,7 @@ var instanceId = 0;
 var version = '1.2.0.0';
 var bufferSize = 0;
 var port = 8080;
+var devicesFile = 'probe.xml';
 
 processArgs(process.argv.splice(2));
 
@@ -80,6 +81,8 @@ function processArgs(args){
 			case 'SENDER':
 				sender = tokens[1];
 				break;
+			case 'DEVICES':
+				devicesFile = tokens[1];
 			default:
 				break;
 		}
