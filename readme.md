@@ -9,6 +9,13 @@ In particular, many synchronous calls need to be made asynchronous.
 
 ## What's New
 
+*2012/09/01*
+
+* Minor refactoring. Removed some dead code. Fixed error document handling.
+* Streams now return proper firstSequence, lastSequence values.
+* The `current` request now supports `at`, and validates the parameter.
+* The `sample` request now validates `from` and `count`, and supports an arbitrarily-chosen maximum count of 500.
+
 *2012/08/22*
 
 * The `current` and `sample` resources now return something that looks like a valid MTConnectStreams document.
@@ -23,12 +30,11 @@ It will serve an MTConnectStreams document in response to a /current or /sample 
 All other requests will receive an MTConnectErrors document.
 
 All of the XML documents lack proper xmlns namespace attributes.
-The /current and /sample requests are work-in-progress and not properly formed. 
 Instead, they will return JSON data inside a <Debug> tag.
 
 Parameters are not implemented for any of the requests.
 A /probe request will not recognize a device-specific probe such as `http://hostname:port/devicename/probe`.
-A /current request will not recognize `path`, `at` or `interval` parameters.
+A /current request will not recognize `path` or `interval` parameters.
 A /sample request will not recognize `path` or `interval` parameters.
 
 Assets are not implemented at all. 

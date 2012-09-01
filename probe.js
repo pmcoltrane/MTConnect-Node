@@ -31,14 +31,9 @@ exports.loadDevices = function(filename, callback){
 	});	
 }
 
-exports.getProbe = function(deviceId){
+exports.getProbeAsync = function(deviceId, response, callback){
 	//TODO: support getting probe by deviceId
-	return probeXmlDocument;
-}
-
-exports.getProbeString = function(deviceId){
-	var xml = exports.getProbe(deviceId);
-	return new XMLSerializer().serializeToString(xml);
+	callback(null, response, probeXmlDocument);
 }
 
 exports.getDataItems = function(xpath){

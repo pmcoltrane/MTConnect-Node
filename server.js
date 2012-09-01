@@ -4,6 +4,7 @@ var probe = require('./probe.js');
 var store = require('./store.js');
 var DOMParser = require('xmldom').DOMParser;
 var XMLSerializer = require('xmldom').XMLSerializer;
+var async = require('async');
 
 var sender = 'mtconnect-node';
 var instanceId = 0;
@@ -25,17 +26,17 @@ http.createServer(onRequest).listen(port);
 var handlers = {
 	probe: function(request, response, query){
 		console.log('probe');
-		devicesDocument(null, response, probe.getProbeString());
+		probe.getProbeAsync(null, response, devicesDocument);
 	},
 	sample: function(request, response, query){
 		console.log('sample');
 		var dataItems = probe.getDataItems();
-		streamsDocument(null, response, store.getSample(dataItems, query.from, query.count));
+		store.getSampleAsync(response, dataItems, query.from, query.count, streamsDocument);
 	},
 	current: function(request, response, query){
 		console.log('current');
 		var dataItems = probe.getDataItems();
-		streamsDocument(null, response, store.getCurrent(dataItems, query.at));
+		store.getCurrentAsync(response, dataItems, query.at, streamsDocument);
 	},
 	asset: function(request, response, query){
 		console.log('asset');
@@ -100,32 +101,43 @@ function onRequest(request, response){
 	else if(handlers[pathname]){
 		handlers[pathname](request, response, query);
 	}
+	else if(pathname.indexOf('test/')===0){
+		handlers.serve(request, response, query);
+	}
 	else{
 		handlers.default(request, response, query);
 	}
 }
 
-function devicesDocument(err, response, xml){
+function devicesDocument(err, response, xmlnode){
 	if(err){
-		errorsDocument(null, err);
+		errorsDocument(err, response);
 		return;
 	}
 	
-	// No error, so write a probe.
-	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
-	var header = createHeader();
+	// Create DOM document
+	var doc = new DOMParser().parseFromString('<MTConnectDevices/>');
+	var rootNode = doc.firstChild;
 	
-	response.write('<MTConnectDevices>');	//TODO: include xmlns attributes
-	response.write(header);
-	//TODO: write AssetCounts
+	// Add header
+	var headerNode = doc.createElement('Header');
+	createHeaderNode(headerNode, {});
+	rootNode.appendChild(headerNode);
+	
+	// Add devices
+	var devicesNode = doc.importNode(xmlnode, true);
+	rootNode.appendChild(devicesNode);
+	
+	// Write response
+	var xml = new XMLSerializer().serializeToString(doc);
+	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
 	response.write(xml);
-	response.write('</MTConnectDevices>');
 	response.end();
 }
 
 function streamsDocument(err, response, data){
 	if(err){
-		errorsDocument(null, err);
+		errorsDocument(err, response);
 		return;
 	}
 	
@@ -272,48 +284,45 @@ function ConditionToStreamsName(condition){
 	return conditions.charAt(0).toUpperCase() + conditions.substring(1).toLowerCase();
 }
 
-function errorsDocument(err, response, data){
-	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
+function errorsDocument(err, response){
+	var doc = new DOMParser().parseFromString('<MTConnectError/>');
+	var rootNode = doc.firstChild;
+
+	// Write header
+	var headerNode = doc.createElement('Header');
+	createHeaderNode(headerNode, {});
+	rootNode.appendChild(headerNode);
 	
-	// Write Header
-	var header = createHeader();
+	// Add error(s)
+	var errorsNode = doc.createElement('Errors');
+	rootNode.appendChild(errorsNode);
 	
-	// Write XML
-	// TODO: build using DOM builder.
-	var ret = '<Errors>';
-	if( !(data instanceof Array) ){
-		ret += '<Error errorCode="' + 'INTERNAL_ERROR' + '">' + JSON.stringify(data) + '</Error>';
+	if( !(err instanceof Array) ){
+		var node = doc.createElement('Error');
+		node.setAttribute('errorCode', 'INTERNAL_ERROR');
+		node.appendChild(doc.createTextNode(JSON.stringify(err)));
+		errorsNode.appendChild(node);
 	}
 	else{
-		for(i=0; i<data.length; i++){
-			var errorCode = data[i];
+		for(i=0; i<err.length; i++){
+			var errorCode = err[i];
 			var errorDescription = ErrorCodes.hasOwnProperty(errorCode) ? ErrorCodes[errorCode].description : ErrorCodes.Default.description;
-			ret += '<Error errorCode="' + errorCode + '">' + errorDescription + '</Error>';
+			console.log('Error code: ' + errorCode);
+			console.log('Error description: ' + errorDescription);
+			console.log('Data: ' + JSON.stringify(err[i]));
+			
+			var node = doc.createElement('Error');
+			node.setAttribute('errorCode', errorCode);
+			node.appendChild(doc.createTextNode(errorDescription));
+			errorsNode.appendChild(node);
 		}
 	}
-	ret += '</Errors>';
-	response.write('<MTConnectError>');	// TODO: include xmlns attributes
-	response.write(header);
-	response.write(ret);
-	response.write('</MTConnectError>');
-	response.end();
-}
-
-function createHeader(attributes){
-	if( (attributes===undefined)||(attributes===null) ){
-		attributes = {};
-	}
-	attributes.sender = sender;
-	attributes.instanceId = instanceId;
-	attributes.version = version;
-	attributes.bufferSize = bufferSize;
-
-	var ret = '<Header creationTime="' + new Date().toISOString() + '" ';
-	for(var item in attributes){
-		ret += item + '="' + attributes[item] + '" ';
-	}
-	ret += '/>';
-	return ret;
+	
+	// Write response
+	var xml = new XMLSerializer().serializeToString(doc);
+	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
+	response.write(xml);
+	response.end();	
 }
 
 function createHeaderNode(node, attributes){
@@ -342,7 +351,7 @@ function createComponentNode(node, data){
 	node.setAttribute('id', '' + data.id);
 }
 
-function getRandomInt (min, max) {
+function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 

@@ -1,5 +1,6 @@
 // VARIABLES
 var store = {};	// Stores samples by data item.
+var firstSequence = 0;
 var nextSequence = 0;
 
 // EXPORTS
@@ -50,7 +51,7 @@ exports.load = function(xmldoc){
 }
 
 exports.getSample = function(dataItems, from, count){
-	var ret = {samples: [], firstSequence: null, lastSequence: null};
+	var ret = {samples: [], firstSequence: firstSequence, lastSequence: nextSequence-1};
 
 	for(var i=0; i<dataItems.length; i++){
 		var id = dataItems[i];
@@ -79,43 +80,66 @@ exports.getSample = function(dataItems, from, count){
 		return 0;
 	});
 	ret.samples.length = Math.min(count, ret.samples.length);
-	if(ret.samples.length>0){
-		ret.firstSequence = ret.samples[0].sequence;
-		ret.lastSequence = ret.samples[ret.samples.length-1].sequence;
-	}
-	else{
-		ret.firstSequence = 0;
-		ret.lastSequence = 0;
-	}
 	
 	return ret;
 }
 
+exports.getSampleAsync = function(response, dataItems, from, count, callback){
+	var fromInvalid = (from !== undefined) && (isNaN(from));	// from-parameter invalid if specified but not a number
+	var fromOutOfRange = (!fromInvalid) && (from !== undefined) && ( (from<firstSequence) || (from>=nextSequence) );	// from-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
+	
+	if(fromInvalid) callback(['INVALID_REQUEST'], response, null);
+	if(fromOutOfRange) callback(['OUT_OF_RANGE'], response, null);
+	
+	var countInvalid = (count !== undefined) && (isNaN(count));
+	var countTooMany = (count > 500);
+	
+	if(countInvalid) callback(['INVALID_REQUEST'], response, null);
+	if(countTooMany) callback(['TOO_MANY'], response, null);
+
+	callback(null, response, exports.getSample(dataItems, from, count));
+}
+
 exports.getCurrent = function(dataItems, at){
 	//TODO: this looks like it should refactor to be done in parallel.
-	var ret = {samples: [], firstSequence: null, lastSequence: null};
+	var ret = {samples: [], firstSequence: firstSequence, lastSequence: nextSequence-1};
 	
 	for(var i=0; i<dataItems.length; i++){
 		var id = dataItems[i];
 		var item = store[id];
 		
 		var index = item.samples.length-1;
+		if(index<0) continue;	// No samples, skip to next.
 		
-		// TODO: support at-parameter
+		// If at-parameter exists, find appropriate sample index
+		if(at !== undefined){
+			if(item.samples[0].sequence > at) continue;	// No samples less than at-parameter, skip to next.
+			
+			for(var j=0; j<item.samples.length; j++){
+				if(item.samples[j].sequence > at){
+					index = j-1;
+					break;
+				}
+			}
+		}
 
 		var sample = flatten(item, index)
 		if( sample !== null ){
 			ret.samples.push(sample);
-			if( (ret.firstSequence===null) || (sample.sequence<ret.firstSequence) ){
-				ret.firstSequence = sample.sequence;
-			}
-			if( (ret.lastSequence===null) || (sample.sequence>ret.lastSequence) ){
-				ret.lastSequence = sample.sequence;
-			}
 		}
 	}
 	
 	return ret;
+}
+
+exports.getCurrentAsync = function(response, dataItems, at, callback){
+	var atInvalid = (at !== undefined) && (isNaN(at));	//at-parameter invalid if specified but not a number
+	var atOutOfRange = (!atInvalid) && (at !== undefined) && ( (at<firstSequence) || (at>= nextSequence) );	//at-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
+	
+	if(atInvalid) callback(['INVALID_REQUEST'], response, null);
+	if(atOutOfRange) callback(['OUT_OF_RANGE'], response, null);
+
+	callback(null, response, exports.getCurrent(dataItems, at));
 }
 
 exports.storeSample = function(id, value, timestamp, condition){
