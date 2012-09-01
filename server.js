@@ -16,10 +16,11 @@ var devicesFile = 'probe.xml';
 processArgs(process.argv.splice(2));
 
 instanceId = generateInstanceId();
-probe.loadDevices('probe.xml', function(err, data){
+probe.loadDevices(devicesFile, function(err, data){
 	store.load(data);
 });
 
+console.log('Listening on port ' + port);
 http.createServer(onRequest).listen(port);
 
 
@@ -77,6 +78,7 @@ var ErrorCodes = {
 
 
 function processArgs(args){
+	if(args.length===0) return;
 	console.log('Arguments: ' + args);
 	
 	for(var i=0; i<args.length; i++){

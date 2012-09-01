@@ -176,11 +176,10 @@ exports.storeSamples = function(response, query, callback){
 		function(item, callback){
 			try{
 				storeSample(item.id, item.value, item.timestamp, item.condition);
-				console.log('stored');
 				callback();
 			}
 			catch(e){
-				console.log(e);
+				console.log('Error storing data item: ' + JSON.stringify(e));
 				callback('UNABLE_TO_STORE');
 			}
 		},

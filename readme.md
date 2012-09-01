@@ -16,6 +16,8 @@ As such, it is not necessarily good Node.js code.
 * The `current` request now supports `at`, and validates the parameter.
 * The `sample` request now validates `from` and `count`, and supports an arbitrarily-chosen maximum count of 500.
 * The `store` request now accepts multiple DataItem updates in a single request, and returns an error document on failure. See the Usage section.
+* Fixed error in loading devices file. 
+* Working on test/two-axis.js as demo two-axis machine for testing. Currently, this provides two axis data items that move sinusoidally.
 
 *2012/08/22*
 
@@ -52,10 +54,11 @@ Test cases are not yet created.
 ### Running the Agent
 
 From a command prompt in the repository working directory:
-> node server.js [port={port}] [sender={sender}]
+$ node server.js [port={port}] [sender={sender}] [devices={devices}]
 
 The optional `port` parameter will be interpreted as the port on which the server should listen.
 The optional `sender` parameter will be used as the 'sender' string sent in the document headers. 
+The optional `devices` parameter will be interpreted as the name of the file to load for Devices XML data.
 
 The server will listen on port 8080 by default. 
 

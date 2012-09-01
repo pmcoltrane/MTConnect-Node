@@ -18,54 +18,81 @@ exec - execution mode
 cm - controller mode
 **/
 
-var ticks = 0;
-var lastUpdate = new Date().getTime();
-setInterval(mainLoop, 100);
+var http = require('http');
 
-var x = 0;
-var z = 0;
-
-var spindleSpeed = '180';
-var spindleOverride = '100';
-var rf = 'SPINDLE';
-
-var program = '';
-var blk = '';
-var line = 0;
-var pathFeedrate = '100';
-var pathFeedrateOverride = '100';
-var pathPosition = '0 0 0';
-var executionMode = 'ACTIVE';	//READY, ACTIVE, INTERRUPTED, STOPPED
-var controllerMode = 'AUTOMATIC';	//AUTOMATIC, SEMI_AUTOMATIC, MANUAL, MANUAL_DATA_INPUT, FEED_HOLD
+var host = 'localhost';
+var port = 8080;
+var path = '/store';
+var updateUrl = 'localhost:8080/store';
 
 
 
-function mainLoop(){
-	var delta = (new Date().getTime()) - lastUpdate;
-	ticks += delta;
-	lastUpdate = new Date().getTime();
-
-	updateAxes(delta);
-	updateSpindle(delta);
-	updateController(delta);
-}
-
-function loadInitial(){
-
-}
-
-function updateAxes(delta){
-	x = 10 * Math.sin(x);
-	z = 100 * Math.cos(z) + 100;
+function SinAxis(id, host, port, path, amplitude, frequency){
+	this.id = id;
 	
+	this.host = host;
+	this.port = port;
+	this.path = path;
 	
+	this.amplitude = amplitude;
+	this.frequency = frequency;
+	this.value = null;
+	this.enabled = false;
+	this.updateTimer = null;
+	this.ticks = 0;
+	this.lastTime = null;
+	this.enable = SinAxis.prototype.enable;
+	this.disable = SinAxis.prototype.disable;
+	this.update = SinAxis.prototype.update;
 }
 
-function updateSpindle(delta){
-
+SinAxis.prototype.enable = function(){
+	this.disable();
+	this.lastTime = new Date().getTime();
+	var that = this;
+	this.updateTimer = setInterval(
+		function(){
+			var now = new Date().getTime();
+			var diff = now - that.lastTime;
+			that.lastTime = now;
+			that.ticks += diff;
+			
+			that.value = that.amplitude * Math.sin(that.frequency * that.ticks);
+			
+			var options = {
+				host: that.host,
+				port: that.port,
+				path: that.path + '?id=' + that.id + '&timestamp=' + new Date(now).toISOString() + '&value=' + that.value,
+				method: 'GET'
+			};
+			
+			
+			console.log(options);
+			
+			var req = http.request(options, function(result){
+				console.log('Result: ' + result.statusCode);
+			});
+			
+			req.on('error', function(e) {
+				console.log('Problem with request: ' + e.message);
+			});
+			
+			req.end();
+		}, 
+		1000
+	);
 }
 
-function updateController(delta){
-	line += 1;
-	pathPosition = x + ' 0 ' + z;
+SinAxis.prototype.disable = function(){
+	if(this.updateTimer!==null){
+		clearInterval(this.updateTimer);
+		this.updateTimer = null;
+	}
 }
+
+
+var xp = new SinAxis('xp', host, port, path, 100, 1);
+xp.enable();
+
+var zp = new SinAxis('zp', host, port, path, 50, 5);
+zp.enable();
