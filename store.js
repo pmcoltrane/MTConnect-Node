@@ -54,95 +54,110 @@ exports.load = function(xmldoc){
 }
 
 exports.getSampleAsync = function(response, dataItems, from, count, callback){
-	var fromInvalid = (from !== undefined) && (isNaN(from));	// from-parameter invalid if specified but not a number
-	var fromOutOfRange = (!fromInvalid) && (from !== undefined) && ( (from<0) || (from>=nextSequence) );	// from-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
-	
-	if(fromInvalid) callback(['INVALID_REQUEST'], response, null);
-	if(fromOutOfRange) callback(['OUT_OF_RANGE'], response, null);
-	
-	var countInvalid = (count !== undefined) && (isNaN(count));
-	var countTooMany = (count > 500);
-	
-	if(countInvalid) callback(['INVALID_REQUEST'], response, null);
-	if(countTooMany) callback(['TOO_MANY'], response, null);
-	
-	var ret = {samples: [], firstSequence: firstSequence, lastSequence: nextSequence-1, nextSequence: null};
-	async.forEach(
-		dataItems,
-		function(id, callback){
-			var item = store[id];
-			for(var j=0; j<item.samples.length; j++){
-				// Filter by from-parameter if necessary
-				if(from!==undefined){
-					if( item.samples[j].sequence < from ) continue;
+	try{
+		var fromInvalid = (from !== undefined) && (isNaN(from));	// from-parameter invalid if specified but not a number
+		var fromOutOfRange = (!fromInvalid) && (from !== undefined) && ( (from<0) || (from>=nextSequence) );	// from-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
+		
+		if(fromInvalid) callback(['INVALID_REQUEST'], response, null);
+		if(fromOutOfRange) callback(['OUT_OF_RANGE'], response, null);
+		
+		var countInvalid = (count !== undefined) && (isNaN(count));
+		var countTooMany = (count > 500);
+		
+		if(countInvalid) callback(['INVALID_REQUEST'], response, null);
+		if(countTooMany) callback(['TOO_MANY'], response, null);
+		
+		var ret = {samples: [], firstSequence: firstSequence, lastSequence: nextSequence-1, nextSequence: null};
+		async.forEach(
+			dataItems,
+			function(id, callback){
+				var item = store[id];
+				for(var j=0; j<item.samples.length; j++){
+					// Filter by from-parameter if necessary
+					if(from!==undefined){
+						if( item.samples[j].sequence < from ) continue;
+					}
+				
+					var sample = flatten(item, j)
+					if( sample !== null){
+						ret.samples.push(sample);
+					}
 				}
-			
-				var sample = flatten(item, j)
-				if( sample !== null){
-					ret.samples.push(sample);
+				callback();
+			},
+			function(err){
+				if( count===undefined ){
+					count=10;
 				}
+				ret.samples.sort(function(a, b){
+					if(a.sequence > b.sequence) return 1;
+					if(a.sequence < b.sequence) return -1;
+					return 0;
+				});
+				ret.samples.length = Math.min(count, ret.samples.length);
+				if(ret.samples.length>0) ret.nextSequence = ret.samples[ret.samples.length-1].sequence + 1;
+				callback(null, response, ret);
 			}
-			callback();
-		},
-		function(err){
-			if( count===undefined ){
-				count=10;
-			}
-			ret.samples.sort(function(a, b){
-				if(a.sequence > b.sequence) return 1;
-				if(a.sequence < b.sequence) return -1;
-				return 0;
-			});
-			ret.samples.length = Math.min(count, ret.samples.length);
-			if(ret.samples.length>0) ret.nextSequence = ret.samples[ret.samples.length-1].sequence + 1;
-			callback(null, response, ret);
-		}
-	);
-	
+		);
+	}
+	catch(e){
+		console.log('Error in sample: ' + e);
+		callback(['INTERNAL_ERROR'], response, null);	
+	}
 }
 
 exports.getCurrentAsync = function(response, dataItems, at, callback){
-	var atInvalid = (at !== undefined) && (isNaN(at));	//at-parameter invalid if specified but not a number
-	var atOutOfRange = (!atInvalid) && (at !== undefined) && ( (at<firstSequence) || (at>= nextSequence) );	//at-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
-	
-	if(atInvalid) callback(['INVALID_REQUEST'], response, null);
-	if(atOutOfRange) callback(['OUT_OF_RANGE'], response, null);
-
-	var ret = {samples: [], firstSequence: firstSequence, lastSequence: nextSequence-1, nextSequence: null};
-	async.forEach(
-		dataItems,
-		function(id, callback){
-			var item = store[id];
+	try{
+		var atInvalid = (at !== undefined) && (isNaN(at));	//at-parameter invalid if specified but not a number
+		var atOutOfRange = (!atInvalid) && (at !== undefined) && ( (at<firstSequence) || (at>= nextSequence) );	//at-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
 		
-			var index = item.samples.length-1;
-			if(index<0) callback();	// No samples, skip to next.
+		if(atInvalid) callback(['INVALID_REQUEST'], response, null);
+		if(atOutOfRange) callback(['OUT_OF_RANGE'], response, null);
+
+		var ret = {samples: [], firstSequence: firstSequence, lastSequence: nextSequence-1, nextSequence: null};
+		async.forEach(
+			dataItems,
+			function(id, callback){
+				var item = store[id];
 			
-			// If at-parameter exists, find appropriate sample index
-			if(at !== undefined){
-				if(item.samples[0].sequence > at) callback();	// No samples less than at-parameter, skip to next.
+				var index = item.samples.length-1;
+				if(index<0){
+					callback();	// No samples, skip to next.
+					return;
+				}
 				
-				for(var j=0; j<item.samples.length; j++){
-					if(item.samples[j].sequence > at){
-						index = j-1;
-						break;
+				// If at-parameter exists, find appropriate sample index
+				if(at !== undefined){
+					console.log(item);
+					if(item.samples[0].sequence > at) callback();	// No samples less than at-parameter, skip to next.
+					
+					for(var j=0; j<item.samples.length; j++){
+						if(item.samples[j].sequence > at){
+							index = j-1;
+							break;
+						}
 					}
 				}
-			}
 
-			var sample = flatten(item, index)
-			if( sample !== null ){
-				ret.samples.push(sample);
-				if( (ret.nextSequence===null) || (ret.nextSequence < sample.sequence) ){
-					ret.nextSequence = sample.sequence+1;
+				var sample = flatten(item, index)
+				if( sample !== null ){
+					ret.samples.push(sample);
+					if( (ret.nextSequence===null) || (ret.nextSequence <= sample.sequence) ){
+						ret.nextSequence = sample.sequence+1;
+					}
 				}
+				
+				callback();
+			},
+			function(err){
+				callback(null, response, ret);
 			}
-			
-			callback();
-		},
-		function(err){
-			callback(null, response, ret);
-		}
-	);
+		);
+	}
+	catch(e){
+		console.log('Error in current: ' + e);
+		callback(['INTERNAL_ERROR'], response, null);
+	}
 }
 
 exports.storeSamples = function(response, query, callback){
