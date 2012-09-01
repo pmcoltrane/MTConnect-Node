@@ -3,18 +3,19 @@
 ## Overview
 
 MTConnect-Node is an attempt at a Node.js implementation of an MTConnect Agent. 
+It is currently runnable, with a few notable MTConnect features missing, as noted in a later section.
 This is my first attempt at a Node.js project. 
 As such, it is not necessarily good Node.js code. 
-In particular, many synchronous calls need to be made asynchronous.
 
 ## What's New
 
 *2012/09/01*
 
 * Minor refactoring. Removed some dead code. Fixed error document handling.
-* Streams now return proper firstSequence, lastSequence values.
+* Streams should now return proper firstSequence, lastSequence, nextSequence values.
 * The `current` request now supports `at`, and validates the parameter.
 * The `sample` request now validates `from` and `count`, and supports an arbitrarily-chosen maximum count of 500.
+* The `store` request now accepts multiple DataItem updates in a single request, and returns an error document on failure. See the Usage section.
 
 *2012/08/22*
 
@@ -30,9 +31,8 @@ It will serve an MTConnectStreams document in response to a /current or /sample 
 All other requests will receive an MTConnectErrors document.
 
 All of the XML documents lack proper xmlns namespace attributes.
-Instead, they will return JSON data inside a <Debug> tag.
 
-Parameters are not implemented for any of the requests.
+Some parameters are not implemented.
 A /probe request will not recognize a device-specific probe such as `http://hostname:port/devicename/probe`.
 A /current request will not recognize `path` or `interval` parameters.
 A /sample request will not recognize `path` or `interval` parameters.
@@ -49,14 +49,19 @@ Test cases are not yet created.
 
 ## Usage
 
+### Running the Agent
+
 From a command prompt in the repository working directory:
 > node server.js [port={port}] [sender={sender}]
 
 The optional `port` parameter will be interpreted as the port on which the server should listen.
 The optional `sender` parameter will be used as the 'sender' string sent in the document headers. 
 
-The server will listen on port 8080 by default. From there, data items may be stored in the agent with:
+The server will listen on port 8080 by default. 
 
+### Sending DataItems to the Agent
+
+Data items may be stored in the agent using the /store resource:
 `http://localhost:8080/store?id={dataItemId}&timestamp={timestamp}&value={value}&condition={condition}`
 
 Parameters should be provided as follows:
@@ -65,4 +70,7 @@ Parameters should be provided as follows:
 * `value` - the value of the data item.
 * `condition` - (optional) for a CONDITION data item, the condition: one of UNAVAILABLE, NORMAL, WARNING, FAULT.
 
-Other parameters will be ignored. Proper validation will be added in the future.
+Multiple data items may be updated in a single request by adding a numeric suffix to the parameters, starting with 1, e.g.:
+`http://localhost:8080/store?id={dataItemId}&timestamp={timestamp}&value={value}&condition={condition}&id1={dataItemId}&timestamp1={timestamp}&value1={value}&condition1={condition}&...`. However, the URL should not exceed 2000 characters.
+
+Other parameters will be ignored. Parameters are validated to make sure that the dataItemId exist and that the timestamp is a proper date, but no validation is yet performed to verify that the values are valid, or that a condition is being provided for a condition DataItem.

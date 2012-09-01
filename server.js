@@ -25,38 +25,41 @@ http.createServer(onRequest).listen(port);
 
 var handlers = {
 	probe: function(request, response, query){
-		console.log('probe');
+		console.log('Received probe request.');
 		probe.getProbeAsync(null, response, devicesDocument);
 	},
 	sample: function(request, response, query){
-		console.log('sample');
+		console.log('Received sample request.');
 		var dataItems = probe.getDataItems();
 		store.getSampleAsync(response, dataItems, query.from, query.count, streamsDocument);
 	},
 	current: function(request, response, query){
-		console.log('current');
+		console.log('Received current request.');
 		var dataItems = probe.getDataItems();
 		store.getCurrentAsync(response, dataItems, query.at, streamsDocument);
 	},
 	asset: function(request, response, query){
-		console.log('asset');
+		console.log('Received asset request.');
 		errorsDocument(null, response,  ['UNSUPPORTED']);
 	},
 	store: function(request, response, query){
-		console.log('store');
-		store.storeSample(query.id, query.value, query.timestamp, query.condition);
-		response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
-		response.write('<Debug>Ok.</Debug>');
-		response.end();
+		console.log('Received store request.');
+		store.storeSamples(
+			response,
+			query,
+			storeDocument
+		);
 	},
 	default: function(request, response, query){
-		console.log('default');
+		console.log('Received unknown request.');
 		errorsDocument(null, response, ['UNSUPPORTED']);
 	}
 }
 
 var ErrorCodes = {
 	Default: {description: 'An unknown error has occurred.'},
+	
+	/* MTConnect errors */
 	UNAUTHORIZED: {description: 'The request did not have sufficient permissions to perform the request.'},
 	NO_DEVICE: {description: 'The device specified in the URI could not be found.'},
 	OUT_OF_RANGE: {description: 'The sequence number was beyond the end of the buffer.'},
@@ -66,24 +69,32 @@ var ErrorCodes = {
 	INTERNAL_ERROR: {description: 'Contact the software provider, the Agent did not behave correctly.'},
 	INVALID_XPATH: {description: 'The XPath could not be parsed. Invalid syntax or XPath did not match any valid elements in the document.'},
 	UNSUPPORTED: {description: 'A valid request was provided, but the Agent does not support the feature or request type.'},
-	ASSET_NOT_FOUND: {description: 'An asset ID cannot be located.'}
+	ASSET_NOT_FOUND: {description: 'An asset ID cannot be located.'}, 
+	
+	/* Custom errors */
+	UNABLE_TO_STORE: {description: 'Could not store the given data.'}
 }
 
 
 function processArgs(args){
-	console.log('Args: ' + args);
+	console.log('Arguments: ' + args);
 	
 	for(var i=0; i<args.length; i++){
 		var tokens = args[i].split('=');
 		switch(tokens[0].toUpperCase()){
 			case 'PORT':
-				port = tokens[1];
+				if(!isNaN(tokens[1])){
+					port = tokens[1];
+					console.log('Will listen on port ' + port);
+				}
 				break;
 			case 'SENDER':
 				sender = tokens[1];
+				console.log('Will report sender as "' + sender + '"');
 				break;
 			case 'DEVICES':
 				devicesFile = tokens[1];
+				console.log('Will load device configuration from "' + devicesFile + '"');
 			default:
 				break;
 		}
@@ -147,7 +158,7 @@ function streamsDocument(err, response, data){
 	var rootNode = doc.firstChild;
 	
 	var headerNode = doc.createElement('Header');
-	createHeaderNode(headerNode, {firstSequence: ((data.firstSequence === null) ? 0 : data.firstSequence) , lastSequence: ((data.lastSequence === null) ? 0 : data.lastSequence), nextSequence: ((data.lastSequence === null) ? 0 : data.lastSequence+1)});
+	createHeaderNode(headerNode, {firstSequence: ((data.firstSequence === null) ? 0 : data.firstSequence) , lastSequence: ((data.lastSequence === null) ? 0 : data.lastSequence), nextSequence: ((data.nextSequence === null) ? 0 : data.nextSequence)});
 	rootNode.appendChild(headerNode);
 	
 	var streamsNode = doc.createElement('Streams');
@@ -264,6 +275,34 @@ function streamsDocument(err, response, data){
 	}
 		
 	var xml = new XMLSerializer().serializeToString(doc);
+	response.write(xml);
+	response.end();
+}
+
+function storeDocument(err, response, data){
+	if(err){
+		errorsDocument(err, response);
+		return;
+	}
+	
+	// Create DOM document
+	var doc = new DOMParser().parseFromString('<MTConnectStore/>');
+	var rootNode = doc.firstChild;
+	
+	// Add header
+	var headerNode = doc.createElement('Header');
+	createHeaderNode(headerNode, {});
+	rootNode.appendChild(headerNode);
+	
+	// Add data
+	var dataNode = doc.createElement('Store');
+	rootNode.appendChild(dataNode);
+	
+	dataNode.appendChild(doc.createTextNode('Ok.'));
+	
+	// Write response
+	var xml = new XMLSerializer().serializeToString(doc);
+	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
 	response.write(xml);
 	response.end();
 }
