@@ -32,12 +32,22 @@ var handlers = {
 	sample: function(request, response, query){
 		console.log('Received sample request.');
 		var dataItems = probe.getDataItems();
-		store.getSampleAsync(response, dataItems, query.from, query.count, streamsDocument);
+		if(query.interval){
+			streamSampleInterval(response, dataItems, query.from, query.count, query.interval);
+		}
+		else{
+			store.getSampleAsync(response, dataItems, query.from, query.count, streamsDocument);
+		}
 	},
 	current: function(request, response, query){
 		console.log('Received current request.');
 		var dataItems = probe.getDataItems();
-		store.getCurrentAsync(response, dataItems, query.at, streamsDocument);
+		if(query.interval){
+			streamCurrentInterval(response, dataItems, query.interval);
+		}
+		else{
+			store.getCurrentAsync(response, dataItems, query.at, streamsDocument);
+		}
 	},
 	asset: function(request, response, query){
 		console.log('Received asset request.');
@@ -50,6 +60,16 @@ var handlers = {
 			query,
 			storeDocument
 		);
+	},
+	xpath: function(request, response, query){
+		var xp = query.path;
+		probe.getProbeAsync(null, response, function(err, request, data){
+			var body = 'xpath: ' + xp + ', test' + data;
+		
+			response.writeHead(200, {"Content-Type":"text/plain", "Access-Control-Allow-Origin":"*"});
+			response.write(body);
+			response.end();		
+		});
 	},
 	default: function(request, response, query){
 		console.log('Received unknown request.');
@@ -122,6 +142,9 @@ function onRequest(request, response){
 	}
 }
 
+/** Documnets 
+ **/
+
 function devicesDocument(err, response, xmlnode){
 	if(err){
 		errorsDocument(err, response);
@@ -148,6 +171,29 @@ function devicesDocument(err, response, xmlnode){
 	response.end();
 }
 
+function streamCurrentInterval(response, dataItems, interval){
+	// Note: ignoring the 'at' parameter because as the standard notes, that would result in sending the same document repeatedly
+	// Also note: this function must simply set up the appropriate functionality and then return immediately
+	
+	var boundary = '10101100111100001111111100000000';	//TODO: generate multipart boundary
+	response.writeHead(200, {"Content-Type":"multipart/x-mixed-replace;boundary=" + boundary});
+	
+	// Now each time we generate a part, we need to output:
+	// boundary
+	// Content-type: application/xml
+	// Content-length: length (may be omitted)
+	// CRLF CRLF
+	// document
+	
+	// That needs to be in a timer because we need to return immediately to continue processing
+	// timer needs to be based on an interval BUT we also need to send a heartbeat at least once every 10s if there is no data
+	// so we probably need two timers, plus a variable in this context that indicates when the last message was sent
+	// the first timer will send a part, then set a 10-second timer, or clear it and reset it if it already exists
+	// the 10-second timer will send an empty MTConnectStreams document, then set up another 10-second timer
+}
+
+function streamSampleInterval(response, dataItems
+
 function streamsDocument(err, response, data){
 	if(err){
 		errorsDocument(err, response);
@@ -156,6 +202,86 @@ function streamsDocument(err, response, data){
 	
 	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
 	
+	var xml = createStreamsDocument(data);
+	
+	response.write(xml);
+	response.end();
+}
+
+function errorsDocument(err, response){
+	var doc = new DOMParser().parseFromString('<MTConnectError/>');
+	var rootNode = doc.firstChild;
+
+	// Write header
+	var headerNode = doc.createElement('Header');
+	createHeaderNode(headerNode, {});
+	rootNode.appendChild(headerNode);
+	
+	// Add error(s)
+	var errorsNode = doc.createElement('Errors');
+	rootNode.appendChild(errorsNode);
+	
+	if( !(err instanceof Array) ){
+		var node = doc.createElement('Error');
+		node.setAttribute('errorCode', 'INTERNAL_ERROR');
+		node.appendChild(doc.createTextNode(JSON.stringify(err)));
+		errorsNode.appendChild(node);
+	}
+	else{
+		for(i=0; i<err.length; i++){
+			var errorCode = err[i];
+			var errorDescription = ErrorCodes.hasOwnProperty(errorCode) ? ErrorCodes[errorCode].description : ErrorCodes.Default.description;
+			console.log('Error code: ' + errorCode);
+			console.log('Error description: ' + errorDescription);
+			console.log('Data: ' + JSON.stringify(err[i]));
+			
+			var node = doc.createElement('Error');
+			node.setAttribute('errorCode', errorCode);
+			node.appendChild(doc.createTextNode(errorDescription));
+			errorsNode.appendChild(node);
+		}
+	}
+	
+	// Write response
+	var xml = new XMLSerializer().serializeToString(doc);
+	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
+	response.write(xml);
+	response.end();	
+}
+
+function storeDocument(err, response, data){
+	if(err){
+		errorsDocument(err, response);
+		return;
+	}
+	
+	// Create DOM document
+	var doc = new DOMParser().parseFromString('<MTConnectStore/>');
+	var rootNode = doc.firstChild;
+	
+	// Add header
+	var headerNode = doc.createElement('Header');
+	createHeaderNode(headerNode, {});
+	rootNode.appendChild(headerNode);
+	
+	// Add data
+	var dataNode = doc.createElement('Store');
+	rootNode.appendChild(dataNode);
+	
+	dataNode.appendChild(doc.createTextNode('Ok.'));
+	
+	// Write response
+	var xml = new XMLSerializer().serializeToString(doc);
+	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
+	response.write(xml);
+	response.end();
+}
+
+
+/** XMLDocument Helpers 
+ **/
+ 
+function createStreamsDocument(data){
 	var doc = new DOMParser().parseFromString('<MTConnectStreams/>');
 	var rootNode = doc.firstChild;
 	
@@ -276,37 +402,7 @@ function streamsDocument(err, response, data){
 		}
 	}
 		
-	var xml = new XMLSerializer().serializeToString(doc);
-	response.write(xml);
-	response.end();
-}
-
-function storeDocument(err, response, data){
-	if(err){
-		errorsDocument(err, response);
-		return;
-	}
-	
-	// Create DOM document
-	var doc = new DOMParser().parseFromString('<MTConnectStore/>');
-	var rootNode = doc.firstChild;
-	
-	// Add header
-	var headerNode = doc.createElement('Header');
-	createHeaderNode(headerNode, {});
-	rootNode.appendChild(headerNode);
-	
-	// Add data
-	var dataNode = doc.createElement('Store');
-	rootNode.appendChild(dataNode);
-	
-	dataNode.appendChild(doc.createTextNode('Ok.'));
-	
-	// Write response
-	var xml = new XMLSerializer().serializeToString(doc);
-	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
-	response.write(xml);
-	response.end();
+	return new XMLSerializer().serializeToString(doc);
 }
 
 function DataItemTypeToStreamsName(type){
@@ -323,47 +419,6 @@ function DataItemTypeToStreamsName(type){
 
 function ConditionToStreamsName(condition){
 	return conditions.charAt(0).toUpperCase() + conditions.substring(1).toLowerCase();
-}
-
-function errorsDocument(err, response){
-	var doc = new DOMParser().parseFromString('<MTConnectError/>');
-	var rootNode = doc.firstChild;
-
-	// Write header
-	var headerNode = doc.createElement('Header');
-	createHeaderNode(headerNode, {});
-	rootNode.appendChild(headerNode);
-	
-	// Add error(s)
-	var errorsNode = doc.createElement('Errors');
-	rootNode.appendChild(errorsNode);
-	
-	if( !(err instanceof Array) ){
-		var node = doc.createElement('Error');
-		node.setAttribute('errorCode', 'INTERNAL_ERROR');
-		node.appendChild(doc.createTextNode(JSON.stringify(err)));
-		errorsNode.appendChild(node);
-	}
-	else{
-		for(i=0; i<err.length; i++){
-			var errorCode = err[i];
-			var errorDescription = ErrorCodes.hasOwnProperty(errorCode) ? ErrorCodes[errorCode].description : ErrorCodes.Default.description;
-			console.log('Error code: ' + errorCode);
-			console.log('Error description: ' + errorDescription);
-			console.log('Data: ' + JSON.stringify(err[i]));
-			
-			var node = doc.createElement('Error');
-			node.setAttribute('errorCode', errorCode);
-			node.appendChild(doc.createTextNode(errorDescription));
-			errorsNode.appendChild(node);
-		}
-	}
-	
-	// Write response
-	var xml = new XMLSerializer().serializeToString(doc);
-	response.writeHead(200, {"Content-Type":"application/xml", "Access-Control-Allow-Origin":"*"});
-	response.write(xml);
-	response.end();	
 }
 
 function createHeaderNode(node, attributes){
@@ -391,6 +446,10 @@ function createComponentNode(node, data){
 	node.setAttribute('name', '' + data.name);
 	node.setAttribute('id', '' + data.id);
 }
+
+
+/** Other Helpers 
+ **/
 
 function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
