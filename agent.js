@@ -100,6 +100,9 @@ exports.Agent.prototype.listen = function listen(){
 		else if(client.path==='asset'){
 			me.errors(client, ['UNSUPPORTED']);
 		}
+		else if(client.path==='store'){
+			me.save(client);
+		}
 		else{
 			console.log('UNKNOWN: ' + client.path + '.');
 			me.errors(client, ['INVALID_REQUEST']);
@@ -177,6 +180,26 @@ exports.Agent.prototype.errors = function errors(client, errors){
 	);
 	client.response.write(doc);
 	client.response.end();
+}
+
+exports.Agent.prototype.save = function save(client){
+	var me = this;
+	this._storeSamples(client.query, function(error){
+		if(error){
+			console.log(error);
+			return;	//TODO: error doc
+		}
+		var doc = me.document.storeDocument();
+		client.response.writeHead(
+			200,
+			{
+				'Content-Type': 'application/xml',
+				'Access-Control-Allow-Origin': '*'
+			}
+		);
+		client.response.write(doc);
+		client.response.end();
+	});
 }
 
 
@@ -431,4 +454,47 @@ exports.Agent.prototype._storeSample = function _storeSample(id, value, timestam
 		value: value,
 		condition: condition
 	});
+}
+
+exports.Agent.prototype._storeSamples = function _storeSamples(query, callback){
+	var data = [];
+	data.push(
+		{
+			id: query.id,
+			value: query.value,
+			timestamp: query.timestamp,
+			condition: query.condition
+		}
+	);
+	
+	var i=1;
+	while(query.hasOwnProperty('id'+i)){
+		data.push(
+			{
+				id: query['id'+i], 
+				value: query['value'+i], 
+				timestamp: query['timestamp'+i],
+				condition: query['condition'+i]
+			}
+		);
+	
+		i++;
+	}
+	
+	var me = this;
+	async.forEach(
+		data,
+		function(item, callback){
+			try{
+				me._storeSample(item.id, item.value, item.timestamp, item.condition);
+				callback();
+			}
+			catch(e){
+				callback(['UNABLE_TO_STORE']);
+			}
+		},
+		function(error){
+			callback(error);
+		}
+	)
 }

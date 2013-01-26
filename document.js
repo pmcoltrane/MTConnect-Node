@@ -198,6 +198,22 @@ exports.Document.prototype.errorsDocument = function(error){
 	return new XMLSerializer().serializeToString(doc);
 }
 
+exports.Document.prototype.storeDocument = function(){
+	var doc = new DOMParser().parseFromString('<MTConnectStore/>');
+	var rootNode = doc.firstChild;
+	
+	// Write header
+	var headerNode = this._createHeader(doc, {});
+	rootNode.appendChild(headerNode);
+	
+	var dataNode = doc.createElement('Store');
+	rootNode.appendChild(dataNode);
+	
+	dataNode.appendChild(doc.createTextNode('Ok.'));
+	
+	return new XMLSerializer().serializeToString(doc);
+}
+
 exports.Document.prototype._createHeader = function _createHeader(doc, attributes){
 	if( (attributes===undefined)||(attributes===null) ){
 		attributes = {};

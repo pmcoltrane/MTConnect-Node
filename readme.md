@@ -2,12 +2,17 @@
 
 ## Overview
 
-MTConnect-Node is an attempt at a Node.js implementation of an MTConnect Agent. 
-It is currently runnable, with a few notable MTConnect features missing, as noted in a later section.
-This is my first attempt at a Node.js project. 
-As such, it is not necessarily good Node.js code. 
+MTConnect-Node is an attempted Node.js implementation of an MTConnect Agent. 
+
+Note: this is a Node.js learning attempt. As such, this is not necessarily good Node code.
 
 ## What's New
+
+*2013/01/26*
+
+* Significant restructuring. Project now runs from `run.js`. 
+* Functionality that was in `server.js`, `store.js`, and `probe.js` has now been split between the new `agent.js` and `document.js` modules.
+* Removed the `/test` folder. I believe a better approach will be to create an `adapter.js` that can connect to the MTConnect reference agent adapters.
 
 *2012/09/01*
 
@@ -54,7 +59,7 @@ Test cases are not yet created.
 ### Running the Agent
 
 From a command prompt in the repository working directory:
-$ node server.js [port={port}] [sender={sender}] [devices={devices}]
+$ node run.js [port={port}] [sender={sender}] [devices={devices}]
 
 The optional `port` parameter will be interpreted as the port on which the server should listen.
 The optional `sender` parameter will be used as the 'sender' string sent in the document headers. 
