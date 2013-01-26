@@ -94,6 +94,12 @@ exports.Agent.prototype.listen = function listen(){
 		else if(client.path==='current'){
 			me.current(client);
 		}
+		else if(client.path==='sample'){
+			me.sample(client);
+		}
+		else if(client.path==='asset'){
+			me.errors(client, ['UNSUPPORTED']);
+		}
 		else{
 			console.log('UNKNOWN: ' + client.path + '.');
 			me.errors(client, ['INVALID_REQUEST']);
@@ -118,10 +124,10 @@ exports.Agent.prototype.probe = function probe(client){
 exports.Agent.prototype.current = function current(client){
 	var me = this;
 	
-	this._fetchCurrent(this.fetchIds(), undefined, function(error, data){
+	this._fetchCurrent(this.fetchIds(), client.query.at, function(error, data){
 		if(error){
 			console.log(error);
-			return;
+			return;	//TODO: error doc
 		}
 		var doc = me.document.streamsDocument(data);
 		
@@ -136,6 +142,27 @@ exports.Agent.prototype.current = function current(client){
 		client.response.end();	//FIXME: streaming
 	});
 	
+}
+
+exports.Agent.prototype.sample = function sample(client){
+	var me = this;
+	this._fetchSample(this.fetchIds(), client.query.from, client.query.count, function(error, data){
+		if(error){
+			console.log(error);
+			return;	//TODO: error doc
+		}
+		var doc = me.document.streamsDocument(data);
+		
+		client.response.writeHead(
+			200,
+			{
+				'Content-Type': 'application/xml',
+				'Access-Control-Allow-Origin': '*'
+			}
+		);
+		client.response.write(doc);
+		client.response.end();	//FIXME: streaming
+	});
 }
 
 exports.Agent.prototype.errors = function errors(client, errors){
@@ -199,7 +226,7 @@ exports.Agent.prototype._fetchCurrent = function _fetchCurrent(ids, at, callback
 				}
 				
 				// If at-parameter exists, find appropriate sample index
-				if(!atInvalid){
+				if( at !== undefined ){
 					if(item.samples[0].sequence > at) callback();	// No samples less than at-parameter, skip to next.
 					
 					for(var j=0; j<item.samples.length; j++){
@@ -232,8 +259,58 @@ exports.Agent.prototype._fetchCurrent = function _fetchCurrent(ids, at, callback
 	}
 }
 
-exports.Agent.prototype._fetchSample = function _fetchSample(ids, from, count){
-	//TODO: implement
+exports.Agent.prototype._fetchSample = function _fetchSample(ids, from, count, callback){
+	try{
+		var fromInvalid = (from !== undefined) && (isNaN(from));	// from-parameter invalid if specified but not a number
+		var fromOutOfRange = (!fromInvalid) && (from !== undefined) && ( (from<0) || (from>=this.nextSequence) );	// from-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
+		
+		if(fromInvalid) callback(['INVALID_REQUEST'], null);
+		if(fromOutOfRange) callback(['OUT_OF_RANGE'], null);
+		
+		var countInvalid = (count !== undefined) && (isNaN(count));
+		var countTooMany = (count > 500);	//TODO: do not hardcode max count
+		
+		if(countInvalid) callback(['INVALID_REQUEST'], null);
+		if(countTooMany) callback(['TOO_MANY'], null);
+		
+		var ret = {samples: [], firstSequence: this.firstSequence, lastSequence: this.nextSequence-1, nextSequence: null};
+		var me = this;
+		async.forEach(
+			ids,
+			function(id, callback){
+				var item = me.store[id];
+				for(var j=0; j<item.samples.length; j++){
+					// Filter by from-parameter if necessary
+					if(from!==undefined){
+						if( item.samples[j].sequence < from ) continue;
+					}
+				
+					var sample = me._flattenItem(item, item.samples[j])
+					if( sample !== null){
+						ret.samples.push(sample);
+					}
+				}
+				callback();
+			},
+			function(err){
+				if( count===undefined ){
+					count=10;
+				}
+				ret.samples.sort(function(a, b){
+					if(a.sequence > b.sequence) return 1;
+					if(a.sequence < b.sequence) return -1;
+					return 0;
+				});
+				ret.samples.length = Math.min(count, ret.samples.length);
+				if(ret.samples.length>0) ret.nextSequence = ret.samples[ret.samples.length-1].sequence + 1;
+				callback(null, ret);
+			}
+		);
+	}
+	catch(e){
+		console.log('Error in sample: ' + e);
+		callback(['INTERNAL_ERROR'], null);	
+	}
 }
 
 exports.Agent.prototype._flattenItem = function _flattenItem(item, sample){
