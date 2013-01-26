@@ -1,6 +1,7 @@
 var Document = require('./document.js').Document;
 var DOMParser = require("xmldom").DOMParser;
 var XMLSerializer = require("xmldom").XMLSerializer;
+var async = require('async');
 var extend = require('xtend');
 var fs = require("fs");
 var http = require('http');
@@ -39,6 +40,7 @@ exports.Agent = function Agent(configuration){
 	
 	this.devices = null;
 	this.loadDevices(this.configuration.devicesFile, function(error, data){
+		if(error) console.log(error);
 		me.devices = (error===null) ? data : null;
 	});
 	
@@ -53,6 +55,7 @@ exports.Agent = function Agent(configuration){
  */
 
 exports.Agent.prototype.loadDevices = function loadDevices(filename, callback){
+	var me = this;
 	fs.readFile(filename, 'utf8', function _load(error, data){
 		if(error){
 			callback(error, null);
@@ -61,6 +64,7 @@ exports.Agent.prototype.loadDevices = function loadDevices(filename, callback){
 			try{
 				probeText = data;
 				probeXmlDocument = new DOMParser().parseFromString(data, 'text/xml');
+				me._parseDevices(probeXmlDocument);
 				callback(null, probeXmlDocument);
 			}
 			catch(e){
@@ -87,8 +91,11 @@ exports.Agent.prototype.listen = function listen(){
 			console.log('PROBE');
 			me.probe(client);
 		}
+		else if(client.path==='current'){
+			me.current(client);
+		}
 		else{
-			console.log('UNKNOWN');
+			console.log('UNKNOWN: ' + client.path + '.');
 			me.errors(client, ['INVALID_REQUEST']);
 		}
 	}).listen(this.port);
@@ -106,6 +113,29 @@ exports.Agent.prototype.probe = function probe(client){
 	);
 	client.response.write(doc);
 	client.response.end();
+}
+
+exports.Agent.prototype.current = function current(client){
+	var me = this;
+	
+	this._fetchCurrent(this.fetchIds(), undefined, function(error, data){
+		if(error){
+			console.log(error);
+			return;
+		}
+		var doc = me.document.streamsDocument(data);
+		
+		client.response.writeHead(
+			200, 
+			{
+				'Content-Type': 'application/xml',
+				'Access-Control-Allow-Origin': '*'
+			}
+		);
+		client.response.write(doc);
+		client.response.end();	//FIXME: streaming
+	});
+	
 }
 
 exports.Agent.prototype.errors = function errors(client, errors){
@@ -147,6 +177,85 @@ exports.Agent.prototype.fetchItem = function fetchItem(id){
 	return this.devices.getElementById(id);
 }
 
+exports.Agent.prototype._fetchCurrent = function _fetchCurrent(ids, at, callback){
+	try{
+		var atInvalid = (at !== undefined) && (isNaN(at));	//at-parameter invalid if specified but not a number
+		var atOutOfRange = (!atInvalid) && (at !== undefined) && ( (at<this.firstSequence) || (at>= this.nextSequence) );	//at-parameter out of range if valid, specified, but not between [firstSequence, nextSequence)
+		
+		if(atInvalid) callback(['INVALID_REQUEST'], null);
+		if(atOutOfRange) callback(['OUT_OF_RANGE'], null);
+
+		var ret = {samples: [], firstSequence: this.firstSequence, lastSequence: this.nextSequence-1, nextSequence: null};
+		var me = this;
+		async.forEach(
+			ids,
+			function(id, callback){
+				var item = me.store[id];
+			
+				var index = item.samples.length-1;
+				if(index<0){
+					callback();	// No samples, skip to next.
+					return;
+				}
+				
+				// If at-parameter exists, find appropriate sample index
+				if(!atInvalid){
+					if(item.samples[0].sequence > at) callback();	// No samples less than at-parameter, skip to next.
+					
+					for(var j=0; j<item.samples.length; j++){
+						if(item.samples[j].sequence > at){
+							index = j-1;
+							break;
+						}
+					}
+				}
+
+				var sample = me._flattenItem(item, item.samples[index])
+				if( sample !== null ){
+					ret.samples.push(sample);
+					if( (ret.nextSequence===null) || (ret.nextSequence <= sample.sequence) ){
+						ret.nextSequence = sample.sequence+1;
+					}
+				}
+				
+				callback();
+			},
+			function(err){
+				callback(err, ret);
+			}
+		);
+	}
+	catch(e){
+		console.log('Error in current: ' + e);
+		throw(e);
+		callback(['INTERNAL_ERROR'], null);
+	}
+}
+
+exports.Agent.prototype._fetchSample = function _fetchSample(ids, from, count){
+	//TODO: implement
+}
+
+exports.Agent.prototype._flattenItem = function _flattenItem(item, sample){
+	return {
+		id: item.id, 
+		category: item.category, 
+		name: item.name, 
+		type: item.type, 
+		subType: item.subType, 
+		componentId: item.componentId, 
+		componentType: item.componentType, 
+		componentName: item.componentName, 
+		deviceId: item.deviceId,
+		deviceName: item.deviceName,
+		deviceUuid: item.deviceUuid,
+		sequence: sample.sequence, 
+		timestamp: sample.timestamp, 
+		value: sample.value, 
+		condition: sample.condition
+	}
+}
+
 exports.Agent.prototype._getRandomInt = function _getRandomInt(min, max){
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -167,4 +276,82 @@ exports.Agent.prototype._makeClient = function _makeClient(request, response){
 		request: request,
 		response: response
 	}
+}
+
+exports.Agent.prototype._parseDevices = function _parseDevices(doc){
+	var devices = doc.getElementsByTagName('Device');
+	
+	for(var i=0; i<devices.length; i++){
+		var device = devices[i];
+		var deviceId = device.getAttribute('id');
+		var deviceName = device.getAttribute('name');
+		var deviceUuid = device.getAttribute('uuid');
+		
+		var items = device.getElementsByTagName('DataItem');
+		
+		for(var j=0; j<items.length; j++){
+			var item = items[j];
+			
+			var id = item.getAttribute('id');
+			var category = item.getAttribute('category');
+			var name = item.getAttribute('name');
+			var type = item.getAttribute('type');
+			var subType = item.getAttribute('subType');
+			
+			var component = item.parentNode.parentNode;
+			var componentId = component.getAttribute('id');
+			var componentType = component.tagName;
+			var componentName = component.getAttribute('name');
+					
+			this.store[id] = {
+				id: id, 
+				category: category, 
+				name: name, 
+				type: type, 
+				subType: subType, 
+				componentId: componentId, 
+				componentType: componentType, 
+				componentName: componentName, 
+				deviceId: deviceId,
+				deviceName: deviceName,
+				deviceUuid: deviceUuid,
+				samples: []
+			};
+			//console.log('Parsed item ' + id);
+		}
+		
+	}
+}
+
+exports.Agent.prototype._storeSample = function _storeSample(id, value, timestamp, condition){
+	if( !this.store.hasOwnProperty(id) ){
+		console.log('No data item with id ' + id + '.');
+		//console.log(this.store);
+
+		return;
+		//return;//throw new Exception('No data item with id ' + id + '.');
+	}
+	
+	// Do not store adjacent identical values.
+	if( this.store[id].samples.length > 0 ){
+		var current = this.store[id].samples[this.store[id].samples.length-1];
+		if( current.value == value ) return;
+	}
+	
+	// Validate condition
+	if( this.store[id].category === 'CONDITION' ){
+		if( ['UNAVAILABLE', 'NORMAL', 'WARNING', 'FAULT'].indexOf(condition) == -1 ) return;
+	}
+	
+	// Convert given timestamp to ISO string
+	var ts = new Date(timestamp).toISOString();
+	
+	var sequence = this.nextSequence++;
+	
+	this.store[id].samples.push({
+		sequence: sequence,
+		timestamp: ts,
+		value: value,
+		condition: condition
+	});
 }

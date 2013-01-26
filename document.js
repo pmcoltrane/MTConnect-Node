@@ -143,7 +143,7 @@ exports.Document.prototype.streamsDocument = function(data){
 					
 					for( var k in component[category] ){
 						var item = component[category][k];
-						node.appendChild(this.createStreamDataItem(
+						node.appendChild(this._createStreamDataItem(
 							doc,
 							this._toStreamsName(item.type),
 							item.value, 
@@ -221,7 +221,7 @@ exports.Document.prototype._createStreamDataItem = function _createStreamDataIte
 	var item = doc.createElement(name);
 	
 	for(var attr in attributes){
-		node.setAttribute(attr, '' + attributes[attr]);
+		item.setAttribute(attr, '' + attributes[attr]);
 	}
 	
 	item.appendChild(doc.createTextNode('' + value));
@@ -229,7 +229,7 @@ exports.Document.prototype._createStreamDataItem = function _createStreamDataIte
 }
 
 exports.Document.prototype._toStreamsName = function _toStreamsName(name){
-	var tokens = type.split("_");
+	var tokens = name.split("_");
 	var ret = [];
 	for(var i in tokens){
 		ret.push(
