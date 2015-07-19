@@ -1,10 +1,6 @@
 # MTConnect-Node
 
-## Overview
-
-MTConnect-Node is an attempted Node.js implementation of an MTConnect Agent. 
-
-Note: this is a Node.js learning attempt. As such, this is not necessarily good Node code.
+Node.js implementation of an MTConnect agent.
 
 ## What's New
 
