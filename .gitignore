@@ -161,3 +161,11 @@ pip-log.txt
 
 # Mac crap
 .DS_Store
+
+# Ignore node_modules and typings
+node_modules
+typings
+
+# Ignore .js and .js.map in certain folders
+routes/*.js
+routes/*.js.map

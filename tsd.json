@@ -10,6 +10,21 @@
     },
     "bluebird/bluebird.d.ts": {
       "commit": "db475daba23206e8cd0ac04d47f0764f4a62f7da"
+    },
+    "xpath/xpath.d.ts": {
+      "commit": "db475daba23206e8cd0ac04d47f0764f4a62f7da"
+    },
+    "node/node.d.ts": {
+      "commit": "efc57a6eb7b4d0747894fc106b9dd87e45a8d183"
+    },
+    "express/express.d.ts": {
+      "commit": "efc57a6eb7b4d0747894fc106b9dd87e45a8d183"
+    },
+    "serve-static/serve-static.d.ts": {
+      "commit": "efc57a6eb7b4d0747894fc106b9dd87e45a8d183"
+    },
+    "mime/mime.d.ts": {
+      "commit": "efc57a6eb7b4d0747894fc106b9dd87e45a8d183"
     }
   }
 }
