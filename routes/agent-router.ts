@@ -96,7 +96,7 @@ export function getStreams(req:express.Request, res:express.Response, next:(err?
 
 export function mergeDeviceAndStreams(req:express.Request, res:express.Response, next:(err?:any)=>void):void {
 	var devices = req['items'];
-	var samples = req['samples'];
+	var capture = req['samples'];
 	
 	var merged = {};
 	
@@ -106,6 +106,7 @@ export function mergeDeviceAndStreams(req:express.Request, res:express.Response,
 		merged[item.id].samples = [];
 	}
 	
+	var samples = capture.samples;
 	for(var i in samples){
 		var item = samples[i];
 		if(merged.hasOwnProperty[item.id]){
@@ -114,5 +115,7 @@ export function mergeDeviceAndStreams(req:express.Request, res:express.Response,
 	}
 	console.log('merged items and samples');
 	req['streams'] = merged;
+	delete capture.samples;
+	req['header'] = capture;
 	next();
 }

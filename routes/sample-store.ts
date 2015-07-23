@@ -2,12 +2,14 @@
 
 import Promise = require('bluebird');
 import SampleInfo = require('./sample-info');
+import SampleCapture = require('./sample-capture');
 
 class SampleStore{
 	
 	private _firstSequence:number;
 	private _lastSequence:number;
 	private _nextSequence:number;
+	private _bufferSize:number;
 	
 	private _samples:SampleInfo[];
 	
@@ -21,6 +23,14 @@ class SampleStore{
 	
 	public get nextSequence():number{
 		return this._nextSequence;
+	}
+	
+	public get bufferSize():number{
+		return this._bufferSize;
+	}
+	
+	public set bufferSize(value:number){
+		this._bufferSize = value;
 	}
 	
 	constructor(){
@@ -40,8 +50,16 @@ class SampleStore{
 		this._samples.push(sample);
 	}
 	
-	public getSample = (ids:string[], from:number = 0, count:number = 100):any => {
+	public getSample = (ids:string[], from:number = 0, count:number = 100):Promise<SampleCapture> => {
 		var self = this;
+		
+		var capture = {
+			firstSequence: this._firstSequence,
+			lastSequence: this._lastSequence,
+			nextSequence: this._nextSequence,
+			bufferSize: this._bufferSize,
+			samples: []
+		}
 		
 		return Promise.try(function(){
 			var samples = [];
@@ -56,8 +74,8 @@ class SampleStore{
 					samples.push(sample);
 				}
 			}
-			
-			return samples;
+			capture.samples = samples;	
+			return capture;
 		});
 	}
 	
