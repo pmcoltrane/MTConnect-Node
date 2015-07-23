@@ -17,17 +17,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 var agentRouter = require('./routes/agent-router');
 var quickDirtyResponse = function (req, res) {
     var data;
-    if (req.hasOwnProperty('merged')) {
-        data = { streams: req['merged'] };
+    if (req.hasOwnProperty('streams')) {
+        data = { streams: req['streams'] };
     }
-    else if (req.hasOwnProperty('devices')) {
-        data = { devices: req['devices'] };
+    else if (req.hasOwnProperty('items')) {
+        data = { devices: req['items'] };
     }
     res.status(200).send(data);
 };
-app.get('/', agentRouter.getDevices, quickDirtyResponse);
-app.get('/probe', agentRouter.getDevices, quickDirtyResponse);
-app.get('/sample', agentRouter.getDevices, agentRouter.getStreams, agentRouter.mergeDeviceAndStreams, quickDirtyResponse);
+app.get('/', agentRouter.getItems, quickDirtyResponse);
+app.get('/probe', agentRouter.getItems, quickDirtyResponse);
+app.get('/sample', agentRouter.getItems, agentRouter.getStreams, agentRouter.mergeDeviceAndStreams, quickDirtyResponse);
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
     var err = new Error('Not Found');
@@ -37,22 +37,11 @@ app.use(function (req, res, next) {
 // error handlers
 // development error handler
 // will print stacktrace
-if (app.get('env') === 'development') {
-    app.use(function (err, req, res, next) {
-        res.status(err.status || 500);
-        res.send({
-            message: err.message,
-            error: err
-        });
-    });
-}
-// production error handler
-// no stacktraces leaked to user
 app.use(function (err, req, res, next) {
     res.status(err.status || 500);
     res.send({
         message: err.message,
-        error: {}
+        error: err
     });
 });
 module.exports = app;

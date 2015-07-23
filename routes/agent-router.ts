@@ -1,10 +1,10 @@
 /// <reference path="../typings/tsd.d.ts" />
-/// <reference path="./device-store.ts" />
+/// <reference path="./item-store.ts" />
 /// <reference path="./sample-store.ts" />
 
 import express = require('express');
 var xmldom = require('xmldom');
-var DeviceStore = require('./device-store');
+var ItemStore = require('./item-store');
 var SampleStore = require('./sample-store');
 var fs = require('fs');
 var dom = require('xmldom').DOMParser;
@@ -13,17 +13,47 @@ var xml = fs.readFileSync('probe.xml', {encoding: 'utf8'});
 
 var doc = new dom().parseFromString(xml);
 
-var deviceStore = new DeviceStore(doc);
+var deviceStore = new ItemStore(doc);
 var sampleStore = new SampleStore(); 
 
-export function getDevices(req:express.Request, res:express.Response, next:(err?:any)=>void):void {
+sampleStore.storeSample({
+	id: 'cn6',
+	value: 'UNAVAILABLE'
+});
+
+sampleStore.storeSample({
+	id: 'x2',
+	value: '15.0000'
+});
+
+sampleStore.storeSample({
+	id: 'cn6',
+	value: 'READY'
+});
+
+sampleStore.storeSample({
+	id: 'x2',
+	value: '16.0530'
+});
+
+sampleStore.storeSample({
+	id: 'estop',
+	value: 'UNAVAILABLE'
+});
+
+sampleStore.storeSample({
+	id: 'estop',
+	value: 'ARMED'
+});
+
+export function getItems(req:express.Request, res:express.Response, next:(err?:any)=>void):void {
 	var device = req.params['device'] || null;
 	var path = req.query['path'] || null;
 	
 	if(device) path = '//Device[@id=' + device + ']';
 	
 	var callback = function(info){
-		req['devices'] = info;
+		req['items'] = info;
 		console.log('got info');
 		next();
 	}
@@ -34,20 +64,20 @@ export function getDevices(req:express.Request, res:express.Response, next:(err?
 	
 	if(!!path){
 		deviceStore.
-		selectInfoFromXPath(path).
+		selectItemsFromXPath(path).
 		then(callback).
 		catch(errcallback);
 	}
 	else{
 		deviceStore.
-		selectInfo().
+		selectItems().
 		then(callback).
 		catch(errcallback);
 	}
 }
 
 export function getStreams(req:express.Request, res:express.Response, next:(err?:any)=>void):void {
-	var devices = req['devices'];
+	var devices = req['items'];
 	var from = req.query.from || 0;
 	var count = req.query.count || 100;
 	
@@ -65,7 +95,7 @@ export function getStreams(req:express.Request, res:express.Response, next:(err?
 }
 
 export function mergeDeviceAndStreams(req:express.Request, res:express.Response, next:(err?:any)=>void):void {
-	var devices = req['devices'];
+	var devices = req['items'];
 	var samples = req['samples'];
 	
 	var merged = {};
@@ -82,7 +112,7 @@ export function mergeDeviceAndStreams(req:express.Request, res:express.Response,
 			merged[item.id].samples.push(item);
 		}
 	}
-	
-	req['merged'] = merged;
+	console.log('merged items and samples');
+	req['streams'] = merged;
 	next();
 }

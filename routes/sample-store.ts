@@ -1,6 +1,5 @@
 /// <reference path="../typings/tsd.d.ts" />
 
-import DeviceInfo = require('./device-info');
 import Promise = require('bluebird');
 import SampleInfo = require('./sample-info');
 

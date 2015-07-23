@@ -4,7 +4,7 @@ import SampleInfo = require('./sample-info');
  * DeviceInfo encapsulates all the data needed for a single item in a streams response.
  * Item data needs to be tied to its own attributes, along with its parent component and device.
  */
-interface DeviceInfo{
+interface ItemInfo{
 	id?:string;
 	category?:string;
 	name?:string;
@@ -20,4 +20,4 @@ interface DeviceInfo{
 	samples?:SampleInfo[];
 }
 
-export = DeviceInfo;
+export = ItemInfo;

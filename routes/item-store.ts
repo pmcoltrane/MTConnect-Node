@@ -1,6 +1,6 @@
-import DeviceInfo = require('./device-info');
+import ItemInfo = require('./item-info');
 import Promise = require('bluebird');
-import xmldom = require('xmldom');
+var xmldom = require('xmldom');
 import xpath = require('xpath');
 
 // Stores sufficient data to match up a DataItem ID to its parent component and device
@@ -8,11 +8,11 @@ import xpath = require('xpath');
 /**
  * DeviceStore stores the 'probe' document, along with sufficient structure to 
  */
-class DeviceStore{
+class ItemStore{
 	
 	private _document:XMLDocument;
-	private _deviceData:{[id:string]:DeviceInfo} = {}; 
-	private _deviceDataArray:DeviceInfo[] = [];
+	private _itemData:{[id:string]:ItemInfo} = {}; 
+	private _itemDataArray:ItemInfo[] = [];
 	
 	constructor(document:XMLDocument){
 		this._document = document;
@@ -42,7 +42,7 @@ class DeviceStore{
 				var componentType = component.tagName;
 				var componentName = component.getAttribute('name');
 				
-				 var info:DeviceInfo = {
+				 var info:ItemInfo = {
 					id: id, 
 					category: category,
 					name: name,
@@ -56,26 +56,26 @@ class DeviceStore{
 					deviceUuid: deviceUuid
 				}
 				
-				this._deviceData[id] = info;
-				this._deviceDataArray.push(info);
+				this._itemData[id] = info;
+				this._itemDataArray.push(info);
 			}	
 		}
 	}
 	
-	public selectInfo = ():Promise<DeviceInfo[]> => {
-		return Promise.all(this._deviceDataArray);
+	public selectItems = ():Promise<ItemInfo[]> => {
+		return Promise.all(this._itemDataArray);
 	}
 	
-	public selectInfoFromXPath = (path:string):Promise<DeviceInfo[]> => {
+	public selectItemsFromXPath = (path:string):Promise<ItemInfo[]> => {
 		var self = this;
 		
 		var nodes = xpath.select(path, self._document);
 		return Promise.map(nodes, (node) => {
 			var id =  (<Element>node).getAttribute('id');
-			return self._deviceData[id];
+			return self._itemData[id];
 		});
 	}
 	
 }
 
-export = DeviceStore;
+export = ItemStore;
