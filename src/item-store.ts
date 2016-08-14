@@ -2,16 +2,21 @@
 'use strict'
 import {Sample} from './sample.ts'
 
-export class ItemStore{
+export class ItemStore {
 
     public firstSequence: number = 0
     public lastSequence: number = 0
     public nextSequence: number = 1
 
-    public samples:{[id:string]:Sample[]} = {}
+    public samples: { [id: string]: Sample[] } = {}
 
+    public setSamples(sampleIds: string[]){
+        for(let i in sampleIds) if(!this.samples.hasOwnProperty(i)){
+            this.samples[i] = []
+        }
+    }
 
-    public recordSample = (sample: Sample): void => {
+    public recordSample(sample: Sample): void {
         let newNextSequence = this.nextSequence + 1
         let newLastSequence = this.nextSequence
 
@@ -19,43 +24,45 @@ export class ItemStore{
         this.lastSequence = newLastSequence
         this.nextSequence = newNextSequence
 
-        if(!this.samples[sample.id]) this.samples[sample.id] = []
-        if(!sample.timestamp) sample.timestamp = new Date()
+        if (!this.samples[sample.id]) this.samples[sample.id] = []
+        if (!sample.timestamp) sample.timestamp = new Date()
         this.samples[sample.id].push(sample)
     }
 
-    public getSample(path?:string, from:number = 0, count:number = 100): Sample[] {
+    public getSample(includeIds: string[], from: number = 0, count: number = 100): Sample[] {
         let returnValue: Sample[] = []
         let enough: boolean = false
 
-        //TODO: filter path
-        for(let i in this.samples){
-            for(let j in this.samples[i]){
-                if (this.samples[i][j].sequence >= from){
-                    returnValue.push(this.samples[i][j]);
-                    if(returnValue.length >= count) enough = true;
-                }
+        let checkId = (id: string): boolean => (includeIds && includeIds.length > 0) ? includeIds.indexOf(id) >= 0 : true
+
+        for (let i in this.samples) if (checkId(i)) {
+            let currentSamples = this.samples[i]
+            for (let j in currentSamples) if (currentSamples[j].sequence >= from) {
+                returnValue.push(currentSamples[j])
+                if (returnValue.length >= count) enough = true
             }
-            if(enough) break;
+            if (enough) break
         }
 
-        return returnValue;
+        return returnValue
     }
 
-    public getCurrent(path?:string, at?:number): Sample[] {
+    public getCurrent(includeIds: string[], at?: number): Sample[] {
         let returnValue: Sample[] = []
 
-        for(let i in this.samples){
-            if(at){
-                for(let j = this.samples[i].length - 1; j>=0; j--){
-                    if(this.samples[i][j].sequence<at){
-                        returnValue.push(this.samples[i][j])
-                        continue
-                    }
+        let checkId = (id: string): boolean => (includeIds && includeIds.length > 0) ? includeIds.indexOf(id) >= 0 : true
+
+        for (let i in this.samples) if (checkId(i)) {
+            let currentSamples = this.samples[i]
+
+            if (at) {
+                for (let j = currentSamples.length - 1; j >= 0; j--) if (currentSamples[j].sequence < at) {
+                    returnValue.push(currentSamples[j])
+                    break
                 }
             }
-            else{
-                returnValue.push(this.samples[i][this.samples[i].length-1])
+            else {
+                returnValue.push(currentSamples[currentSamples.length - 1])
             }
         }
 

@@ -22,10 +22,10 @@ class DevicesRouter {
     }
 
     public fetchCurrent = (req: Express.Request, res: Express.Response, next: Function) => {
-        let path: string = req.params['path']
-        let at: number = req.params['at']
-        //TODO: support interval
-        let current = this.store.getCurrent(path, at)
+        let path: string = req.query['path']
+        let at: number = req.query['at']
+        //TODO: support interval, path
+        let current = this.store.getCurrent(null, at)
 
         let dbg: string = ''
         for (let i in current) {
@@ -39,12 +39,12 @@ class DevicesRouter {
     }
 
     public fetchSamples = (req: Express.Request, res: Express.Response, next: Function) => {
-        let path: string = req.params['path']
-        let from: number = req.params['from']
-        let count: number = req.params['count']
+        let path: string = req.query['path']
+        let from: number = req.query['from']
+        let count: number = req.query['count']
 
-        //TODO: support interval
-        let samples = this.store.getSample(path, from, count);
+        //TODO: support interval, path
+        let samples = this.store.getSample(null, from, count);
 
         let dbg: string = ''
         for (let i in samples) {
