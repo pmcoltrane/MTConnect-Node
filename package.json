@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "node ./bin/www"
+    "start": "node ./bin/app"
   },
   "dependencies": {
     "body-parser": "~1.13.1",
@@ -17,8 +17,8 @@
     "bluebird": "~2.9.34",
     "xpath": "0.0.9"
   },
-  "description": "## Overview",
-  "main": "bin/www",
+  "description": "An implementation of an MTConnect agent in NodeJS.",
+  "main": "bin/app",
   "devDependencies": {},
   "repository": {
     "type": "git",

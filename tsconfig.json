@@ -1,6 +1,15 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "ES5"
-	}
+		"target": "es5",
+        "sourceMap": true,
+        "outDir": "bin",
+        "sourceRoot": "src"
+	},
+    "exclude": [
+        "node_modules",
+        "old",
+        "public",
+        "typings"
+    ]
 }
