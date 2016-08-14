@@ -39,9 +39,9 @@ export class ItemStore {
             let currentSamples = this.samples[i]
             for (let j in currentSamples) if (currentSamples[j].sequence >= from) {
                 returnValue.push(currentSamples[j])
-                if (returnValue.length >= count) enough = true
+                if(returnValue.length >= count) break
             }
-            if (enough) break
+            if (returnValue.length >= count) break
         }
 
         return returnValue

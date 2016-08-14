@@ -2,7 +2,8 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "es5",
-        "inlineSourceMap": true
+        "inlineSourceMap": true,
+        "outDir": "bin"
     },
     "exclude": [
         ".vscode",
