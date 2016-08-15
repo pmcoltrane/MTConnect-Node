@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MTConnectDevices xmlns:m="urn:mtconnect.org:MTConnectDevices:1.3" xmlns="urn:mtconnect.org:MTConnectDevices:1.3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:mtconnect.org:MTConnectDevices:1.3 /schemas/MTConnectDevices_1.3.xsd">
+  <Header creationTime="2016-08-15T02:03:30Z" sender="mtcagent" instanceId="1470423144" version="1.3.0.9" assetBufferSize="1024" assetCount="0" bufferSize="131072"/>
+  <Devices>
+    <Device id="dev" iso841Class="6" name="VMC-3Axis" sampleInterval="10" uuid="000">
+      <Description manufacturer="SystemInsights"/>
+      <DataItems>
+        <DataItem category="EVENT" id="avail" type="AVAILABILITY"/>
+      </DataItems>
+    </Device>
+   </Devices>
+</MTConnectDevices>

@@ -25,6 +25,8 @@ export class Agent{
         this.app.use('/', this.fetchAllDevices)
         this.app.use(this.fallthrough)
 
+        this.deviceStore.loadXmlFile('probe.xml')
+
         this.itemStore.recordSample({ id: 'x1', value: 100.00 })
         this.itemStore.recordSample({ id: 'x1', value: 101.00 })
         this.itemStore.recordSample({ id: 'z1', value: 7 })
@@ -57,6 +59,10 @@ export class Agent{
         let path: string = req.query['path']
         let at: number = req.query['at']
         //TODO: support interval, path
+        if(path){
+            var foo = this.deviceStore.idsFromXPath(path)
+            console.log(foo)
+        }
         let current = this.itemStore.getCurrent(null, at)
 
         let dbg: string = ''

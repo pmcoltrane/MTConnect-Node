@@ -7,7 +7,7 @@ import * as fs from 'fs'
 
 export class DeviceStore{
 
-    private probe:Document;
+    private probe:Document
 
     public loadXml(xml:string):void {
         this.probe = new dom.DOMParser().parseFromString(xml)
@@ -22,11 +22,8 @@ export class DeviceStore{
         if(!this.probe) return null
 
         let returnValue:string[] = []
-
-        let results:Node[] = xpath.select(path, this.probe)
-        for(let i in results){
-            returnValue.push(results[i].attributes['id'])
-        }
+        let results:Node[] = xpath.useNamespaces({'m': 'urn:mtconnect.org:MTConnectDevices:1.3'})(path, this.probe)
+        for(let i in results) returnValue.push(results[i].attributes['id'])
         
         return returnValue
     }
