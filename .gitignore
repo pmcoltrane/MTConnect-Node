@@ -169,3 +169,6 @@ typings
 # Ignore .js and .js.map in certain folders
 routes/*.js
 routes/*.js.map
+
+# Dependency directories
+node_modules
