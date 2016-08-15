@@ -4,6 +4,13 @@ Node.js implementation of an MTConnect agent.
 
 ## What's New
 
+*2016/08/14*
+
+* Rewritten in Typescript using ExpressJS
+* Things still broken:
+    * Configuration
+    * All web responses
+
 *2013/01/26*
 
 * Significant restructuring. Project now runs from `run.js`. 
