@@ -25,6 +25,9 @@
     },
     "mime/mime.d.ts": {
       "commit": "efc57a6eb7b4d0747894fc106b9dd87e45a8d183"
+    },
+    "xmldom/xmldom.d.ts": {
+      "commit": "67557f18a898462614ed14063a54ca33a1cfab12"
     }
   }
 }

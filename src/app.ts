@@ -1,7 +1,7 @@
 /// <reference path="../typings/tsd.d.ts" />
 'use strict';
 
-import Agent = require('./agent');
+import {Agent} from './agent';
 import Http = require('http');
 
 var config = require('../conf/agent.json');

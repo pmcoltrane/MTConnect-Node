@@ -1,15 +1,12 @@
 /// <reference path="../../typings/tsd.d.ts" />
 'use strict';
 
-import Express = require('express')
+import * as Express from 'express'
 import {ItemStore} from '../item-store'
 
-class DevicesRouter {
+export class StreamsRouter {
 
-    private store: ItemStore;
-
-    public constructor() {
-        this.store = new ItemStore()
+    public constructor(private store: ItemStore) {
 
         this.store.recordSample({ id: 'x1', value: 100.00 })
         this.store.recordSample({ id: 'x1', value: 101.00 })
@@ -58,5 +55,3 @@ class DevicesRouter {
     }
 
 }
-
-export = DevicesRouter;
