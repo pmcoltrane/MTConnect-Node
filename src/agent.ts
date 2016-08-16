@@ -1,5 +1,6 @@
 'use strict'
 import * as Express from 'express'
+import * as BodyParser from 'body-parser'
 import {DeviceStore} from './device-store'
 import {ItemStore} from './item-store'
 import {Sample} from './sample'
@@ -161,20 +162,21 @@ export class Agent {
         return elem
     }
 
-    public constructor() {
+    public constructor(devicePath: string) {
         this.app = Express()
         this.deviceStore = new DeviceStore()
         this.itemStore = new ItemStore()
         this.serializer = new xmldom.XMLSerializer()
 
-        this.app.use('/sample', this.fetchSamples)
-        this.app.use('/current', this.fetchCurrent)
-        this.app.use('/:device', this.fetchDevice)
-        this.app.use('/', this.fetchAllDevices)
+        this.app.get('/sample', this.fetchSamples)
+        this.app.get('/current', this.fetchCurrent)
+        this.app.get('/:device', this.fetchDevice)
+        this.app.post('/:device', BodyParser.urlencoded({type: 'application/x-www-form-urlencoded', extended: false}), this.recordSamples)
+        this.app.get('/', this.fetchAllDevices)
         this.app.use(this.fallthrough)
         this.app.use(this.internalErrorHandler)
 
-        this.deviceStore.loadXmlFile('probe.xml')
+        this.deviceStore.loadXmlFile(devicePath)
 
         this.itemStore.recordSample({ id: 'x2', value: 100.00 })
         this.itemStore.recordSample({ id: 'x2', value: 101.00 })
@@ -242,11 +244,26 @@ export class Agent {
         let from: number = req.query['from']
         let count: number = req.query['count']
         let ids: string[] = this.deviceStore.idsFromXPath(path)
-        let samples = this.itemStore.getSample(ids, from, count);
+        let samples = this.itemStore.getSample(ids, from, count)
 
         res
             .contentType('application/xml')
             .send(this.serializer.serializeToString(this.generateStreamsDocument(samples)))
+    }
+
+    public recordSamples = (req: Express.Request, res: Express.Response, next: Function) => {
+        // FIXME: verify ids in advance
+        // Report an error on failure, or a success document on success
+        for(let i in req.body){
+            let info = this.deviceStore.getInfoFor(i)
+            if(info && info.deviceNode.attributes.getNamedItem('name').value === req.params['device']){
+                this.itemStore.recordSample({
+                    id: i,
+                    value: req.body[i]
+                })
+            }
+        }
+        res.sendStatus(204)
     }
 
 }

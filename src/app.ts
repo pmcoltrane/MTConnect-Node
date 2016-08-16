@@ -6,6 +6,6 @@ import Http = require('http');
 
 var config = require('../conf/agent.json');
 var port = config['server']['port'] || 8000;
-var agent = new Agent();
+var agent = new Agent(config['agent']['devices'] || 'probe.xml');
 
 Http.createServer(agent.app).listen(port);
