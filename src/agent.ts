@@ -4,6 +4,7 @@ import {DeviceStore} from './device-store'
 import {ItemStore} from './item-store'
 import {Sample} from './sample'
 import * as xmldom from 'xmldom'
+import {ProtocolError, ProtocolErrors} from './error'
 
 export class Agent {
 
@@ -37,6 +38,31 @@ export class Agent {
 
         for (let elem of devices) body.appendChild(elem)
 
+        return doc
+    }
+
+    private generateErrorDocument(errors: ProtocolError[]): Document {
+        let doc = new xmldom.DOMParser().parseFromString('<MTConnectError/>')
+        let header = this.createElement(doc, 'Header', {
+            creationTime: new Date().toISOString(),
+            sender: this.sender,
+            version: this.version,
+            bufferSize: this.bufferSize.toString(),
+            instanceId: this.instanceId.toString()
+        })
+        doc.documentElement.appendChild(header)
+
+        let body = doc.createElement('Errors')
+        doc.documentElement.appendChild(body)
+
+        for (let err of errors) {
+            let node = this.createElement(doc, 'Error', {
+                errorCode: err.errorCode
+            })
+            if (err.errorDescription) node.textContent = err.errorDescription
+            body.appendChild(node)
+        }
+        
         return doc
     }
 
@@ -146,6 +172,7 @@ export class Agent {
         this.app.use('/:device', this.fetchDevice)
         this.app.use('/', this.fetchAllDevices)
         this.app.use(this.fallthrough)
+        this.app.use(this.internalErrorHandler)
 
         this.deviceStore.loadXmlFile('probe.xml')
 
@@ -170,6 +197,11 @@ export class Agent {
         res.status(404).send('not found!')
     }
 
+    public internalErrorHandler = (err: Error, req: Express.Request, res: Express.Response, next: Function) => {
+        let doc = this.generateErrorDocument([ProtocolErrors.internalError])
+        res.contentType('application/xml').send(this.serializer.serializeToString(doc))
+    }
+
     public fetchAllDevices = (req: Express.Request, res: Express.Response, next: Function) => {
         let devices = this.deviceStore.getDevices(null)
         let doc = this.generateDevicesDocument(devices)
@@ -181,7 +213,14 @@ export class Agent {
     public fetchDevice = (req: Express.Request, res: Express.Response, next: Function) => {
         let name = req.params.device
         let devices = this.deviceStore.getDevices(name)
-        let doc = this.generateDevicesDocument(devices)
+        let doc: Document
+
+        if(!devices || devices.length===0){
+            let doc = this.generateErrorDocument([ProtocolErrors.noDevice])
+        }
+        else{
+            let doc = this.generateDevicesDocument(devices)
+        }
         res
             .contentType('application/xml')
             .send(this.serializer.serializeToString(doc))
