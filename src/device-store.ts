@@ -14,9 +14,16 @@ export class DeviceStore {
     private probeTypeToStreamType(name:string):string{
         let tokens = name.split('-')
         for(let i in tokens){
-            tokens[i] = tokens[i].substr(0,1).toUpperCase() + tokens[i].substr(1).toLowerCase()
+            tokens[i] = this.toTitleCase(tokens[i])
         }
         return tokens.join('')
+    }
+
+    public toTitleCase(text:string):string{
+        if(!text) return text
+        if(text.length === 1) return text.toUpperCase()
+
+        return text.substr(0, 1).toUpperCase() + text.substr(1).toLowerCase()
     }
 
     public loadXml(xml: string): void {

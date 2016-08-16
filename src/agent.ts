@@ -79,8 +79,8 @@ export class Agent {
             if (nameAttr) elemInfo['name'] = nameAttr.value
             if (info.subType) elemInfo['subType'] = info.subType
             if (info.category === 'CONDITION') elemInfo['type'] = info.type
-            let elem = this.createElement(doc, info.category === 'CONDITION' ? samples[i].condition : info.streamType, elemInfo)
-            elem.textContent = samples[i].value.toString()
+            let elem = this.createElement(doc, info.category === 'CONDITION' ? this.deviceStore.toTitleCase(samples[i].condition) : info.streamType, elemInfo)
+            if(samples[i].value) elem.textContent = samples[i].value.toString()
 
             switch (info.category) {
                 case "SAMPLE":
@@ -133,6 +133,8 @@ export class Agent {
         this.itemStore.recordSample({ id: 'x2', value: 104.30 })
         this.itemStore.recordSample({ id: 'x3', value: 7.1 })
         this.itemStore.recordSample({ id: 'x2', value: 105.20 })
+        this.itemStore.recordSample({ id: 'system', condition: 'NORMAL'})
+        this.itemStore.recordSample({ id: 'estop', value: 'ARMED'})
     }
 
     public root = (req: Express.Request, res: Express.Response, next: Function) => {
