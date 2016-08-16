@@ -1,8 +1,12 @@
 # MTConnect-Node
 
-Node.js implementation of an MTConnect agent.
+An implementation of an MTConnect agent on NodeJS
 
 ## What's New
+
+*2016/08/16*
+
+I am working on migrating this project over to Typescript, and implementing some of the functionality that has been missing for the past 4+ years. This project has not been updated in a long time, so hopefully there will be a significant update in the next few weeks, as soon as I can get the new project at least as feature-complete as the current project was/is.
 
 *2013/01/26*
 
