@@ -19,6 +19,27 @@ export class Agent {
 
     private serializer: xmldom.XMLSerializer
 
+    private generateDevicesDocument(devices: Node[]): Document {
+        let doc = new xmldom.DOMParser().parseFromString('<MTConnectDevices/>')
+        let header = this.createElement(doc, 'Header', {
+            creationTime: new Date().toISOString(),
+            sender: this.sender,
+            instanceId: this.instanceId.toString(),
+            version: this.version,
+            bufferSize: this.bufferSize.toString(),
+            assetBufferSize: "0",
+            assetCount: "0"
+        })
+        doc.documentElement.appendChild(header)
+
+        let body = doc.createElement("Devices")
+        doc.documentElement.appendChild(body)
+
+        for (let elem of devices) body.appendChild(elem)
+
+        return doc
+    }
+
     private generateStreamsDocument(samples: Sample[]): Document {
         samples = samples.sort((a, b) => a.sequence - b.sequence)
         let doc = new xmldom.DOMParser().parseFromString('<MTConnectStreams/>')
@@ -58,7 +79,7 @@ export class Agent {
                     component: info.componentNode.localName,
                     componentId: info.component
                 }
-                let nameAttr = info.deviceNode.attributes.getNamedItem('name')
+                let nameAttr = info.componentNode.attributes.getNamedItem('name')
                 if (nameAttr) cInfo['name'] = nameAttr.value
 
                 let cNode = this.createElement(doc, 'ComponentStream', cInfo)
@@ -80,7 +101,7 @@ export class Agent {
             if (info.subType) elemInfo['subType'] = info.subType
             if (info.category === 'CONDITION') elemInfo['type'] = info.type
             let elem = this.createElement(doc, info.category === 'CONDITION' ? this.deviceStore.toTitleCase(samples[i].condition) : info.streamType, elemInfo)
-            if(samples[i].value) elem.textContent = samples[i].value.toString()
+            if (samples[i].value) elem.textContent = samples[i].value.toString()
 
             switch (info.category) {
                 case "SAMPLE":
@@ -97,6 +118,9 @@ export class Agent {
                     break;
             }
         }
+
+        //TODO: if Sample, Event, Condition tags are empty, remove them
+        //or alternately, only add them as needed
 
         let body = doc.createElement('Streams')
         doc.documentElement.appendChild(body)
@@ -133,8 +157,8 @@ export class Agent {
         this.itemStore.recordSample({ id: 'x2', value: 104.30 })
         this.itemStore.recordSample({ id: 'x3', value: 7.1 })
         this.itemStore.recordSample({ id: 'x2', value: 105.20 })
-        this.itemStore.recordSample({ id: 'system', condition: 'NORMAL'})
-        this.itemStore.recordSample({ id: 'estop', value: 'ARMED'})
+        this.itemStore.recordSample({ id: 'system', condition: 'NORMAL' })
+        this.itemStore.recordSample({ id: 'estop', value: 'ARMED' })
     }
 
     public root = (req: Express.Request, res: Express.Response, next: Function) => {
@@ -147,12 +171,20 @@ export class Agent {
     }
 
     public fetchAllDevices = (req: Express.Request, res: Express.Response, next: Function) => {
-        res.send('all devices')
+        let devices = this.deviceStore.getDevices(null)
+        let doc = this.generateDevicesDocument(devices)
+        res
+            .contentType('application/xml')
+            .send(this.serializer.serializeToString(doc))
     }
 
     public fetchDevice = (req: Express.Request, res: Express.Response, next: Function) => {
-        var name = req.params.device
-        res.send(`device ${name}`)
+        let name = req.params.device
+        let devices = this.deviceStore.getDevices(name)
+        let doc = this.generateDevicesDocument(devices)
+        res
+            .contentType('application/xml')
+            .send(this.serializer.serializeToString(doc))
     }
 
     public fetchCurrent = (req: Express.Request, res: Express.Response, next: Function) => {
