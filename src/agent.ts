@@ -5,6 +5,7 @@ import {DeviceStore} from './device-store'
 import {ItemStore} from './item-store'
 import {Sample} from './sample'
 import * as xmldom from 'xmldom'
+import * as xpath from 'xpath'
 import {ProtocolError, ProtocolErrors} from './error'
 
 export class Agent {
@@ -63,7 +64,7 @@ export class Agent {
             if (err.errorDescription) node.textContent = err.errorDescription
             body.appendChild(node)
         }
-        
+
         return doc
     }
 
@@ -146,13 +147,19 @@ export class Agent {
             }
         }
 
-        //TODO: if Sample, Event, Condition tags are empty, remove them
-        //or alternately, only add them as needed
+        // Remove empty Samples, Events, Condition tags
+        let nodesToRemove: Node[] = []
+        for (let i in components) for (let j = 0; j < components[i].childNodes.length; j++) {
+            let node = components[i].childNodes.item(j)
+            if (node.childNodes.length === 0)
+                nodesToRemove.push(node)
+        }
+        for (let i in nodesToRemove) nodesToRemove[i].parentNode.removeChild(nodesToRemove[i])
 
+        // Finish generating document
         let body = doc.createElement('Streams')
         doc.documentElement.appendChild(body)
         for (let i in devices) body.appendChild(devices[i])
-
         return doc
     }
 
@@ -171,7 +178,7 @@ export class Agent {
         this.app.get('/sample', this.fetchSamples)
         this.app.get('/current', this.fetchCurrent)
         this.app.get('/:device', this.fetchDevice)
-        this.app.post('/:device', BodyParser.urlencoded({type: 'application/x-www-form-urlencoded', extended: false}), this.recordSamples)
+        this.app.post('/:device', BodyParser.urlencoded({ type: 'application/x-www-form-urlencoded', extended: false }), this.recordSamples)
         this.app.get('/', this.fetchAllDevices)
         this.app.use(this.fallthrough)
         this.app.use(this.internalErrorHandler)
@@ -217,10 +224,10 @@ export class Agent {
         let devices = this.deviceStore.getDevices(name)
         let doc: Document
 
-        if(!devices || devices.length===0){
+        if (!devices || devices.length === 0) {
             let doc = this.generateErrorDocument([ProtocolErrors.noDevice])
         }
-        else{
+        else {
             let doc = this.generateDevicesDocument(devices)
         }
         res
@@ -254,9 +261,9 @@ export class Agent {
     public recordSamples = (req: Express.Request, res: Express.Response, next: Function) => {
         // FIXME: verify ids in advance
         // Report an error on failure, or a success document on success
-        for(let i in req.body){
+        for (let i in req.body) {
             let info = this.deviceStore.getInfoFor(i)
-            if(info && info.deviceNode.attributes.getNamedItem('name').value === req.params['device']){
+            if (info && info.deviceNode.attributes.getNamedItem('name').value === req.params['device']) {
                 this.itemStore.recordSample({
                     id: i,
                     value: req.body[i]
